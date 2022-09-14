@@ -68,6 +68,7 @@ def evaluate_episode(
 
 def evaluate_episode_rtg(
     env,
+    state_keys,
     state_dim,
     act_dim,
     model,
@@ -92,6 +93,8 @@ def evaluate_episode_rtg(
 
     # we keep all the histories on the device
     # note that the latest action and reward will be "padding"
+    state = np.concatenate([v for k, v in state.items() if k in state_keys], axis=0)
+
     states = (
         torch.from_numpy(state)
         .reshape(1, state_dim)
@@ -111,7 +114,7 @@ def evaluate_episode_rtg(
 
         # add padding
         actions = torch.cat([actions, torch.zeros((1, act_dim), device=device)], dim=0)
-        rewards = torch.cat([rewards, torch.zeros(1, device=device)])
+        # rewards = torch.cat([rewards, torch.zeros(1, device=device)])
 
         action = model.get_action(
             (states.to(dtype=torch.float32) - state_mean) / state_std,
@@ -124,6 +127,8 @@ def evaluate_episode_rtg(
         action = action.detach().cpu().numpy()
 
         state, reward, done, _ = env.step(action)
+
+        state = np.concatenate([v for k, v in state.items() if k in state_keys], axis=0)
 
         cur_state = torch.from_numpy(state).to(device=device).reshape(1, state_dim)
         states = torch.cat([states, cur_state], dim=0)

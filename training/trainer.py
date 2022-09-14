@@ -40,9 +40,11 @@ class Trainer:
             # put batch on device
             for k, v in batch.items():
                 if k == "obs" or k == "next_obs":
-                    batch[k] = torch.cat(
-                        [batch[k][k2] for k2 in batch[k].keys()], dim=-1
-                    ).to(self.device)
+                    batch[k] = (
+                        torch.cat([batch[k][k2] for k2 in batch[k].keys()], dim=-1)
+                        .to(self.device)
+                        .to(dtype=torch.float32)
+                    )
                 batch[k] = batch[k].to(self.device)
             train_loss = self.train_step(batch)
             train_losses.append(train_loss)
@@ -98,10 +100,8 @@ class Trainer:
         loss = self.loss_fn(
             state_preds,
             action_preds,
-            reward_preds,
             state_target[:, 1:],
             action_target,
-            reward_target[:, 1:],
         )
         self.optimizer.zero_grad()
         loss.backward()

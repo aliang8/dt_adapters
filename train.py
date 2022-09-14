@@ -1,12 +1,21 @@
-import gym
-import numpy as np
-import torch
-import wandb
+"""
+The main entry point for training policies.
+
+Args:
+    config (str): path to a config json that will be used to override the default settings.
+        If omitted, default settings are used. This is the preferred way to run experiments.
+
+    algo (str): name of the algorithm to run. Only needs to be provided if @config is not
+        provided.
+
+    name (str): if provided, override the experiment name defined in the config
+
+    dataset (str): if provided, override the dataset path defined in the config
+
+    debug (bool): set this flag to run a quick training run for debugging purposes    
+"""
 
 import argparse
-import pickle
-import random
-import sys
 import json
 import numpy as np
 import time
@@ -16,6 +25,8 @@ import psutil
 import sys
 import socket
 import traceback
+import wandb
+import random
 
 from collections import OrderedDict
 
@@ -32,15 +43,30 @@ from robomimic.config import config_factory
 from robomimic.algo import algo_factory, RolloutPolicy
 from robomimic.utils.log_utils import PrintLogger, DataLogger
 
-from evaluation.evaluate_episodes import evaluate_episode, evaluate_episode_rtg
-from models.decision_transformer import DecisionTransformer
-from training.act_trainer import ActTrainer
-from training.seq_trainer import SequenceTrainer
-
-from utils import discount_cumsum
+# from evaluation.evaluate_episodes import evaluate_episode, evaluate_episode_rtg
+from models.decision_transformer import DecisionTransformer, DTRolloutPolicy
 
 
-def setup(config):
+def train(config, device):
+    """
+    Train a model using the algorithm.
+    """
+
+    # first set seeds
+    np.random.seed(config.train.seed)
+    torch.manual_seed(config.train.seed)
+
+    print("\n============= New Training Run with Config =============")
+    print(config)
+    print("")
+    log_dir, ckpt_dir, video_dir = TrainUtils.get_exp_dir(config)
+
+    if config.experiment.logging.terminal_output_to_txt:
+        # log stdout and stderr to a text file
+        logger = PrintLogger(os.path.join(log_dir, "log.txt"))
+        sys.stdout = logger
+        sys.stderr = logger
+
     exp_prefix = config.experiment.name
     group_name = f"{exp_prefix}-{config.env.env_name}"
     exp_prefix = f"{group_name}-{random.randint(int(1e5), int(1e6) - 1)}"
@@ -53,110 +79,38 @@ def setup(config):
             config=config,
         )
 
+    # read config to set up metadata for observation modalities (e.g. detecting rgb observations)
+    ObsUtils.initialize_obs_utils_with_config(config)
 
-def setup_optimizer(model, config):
-    # setup optimizer and scheduler
-    warmup_steps = config.optim_params.warmup_steps
-    optimizer = torch.optim.AdamW(
-        model.parameters(),
-        lr=config.optim_params.learning_rate.initial,
-        weight_decay=config.optim_params.learning_rate.weight_decay,
-    )
-    scheduler = torch.optim.lr_scheduler.LambdaLR(
-        optimizer, lambda steps: min((steps + 1) / warmup_steps, 1)
-    )
-    return optimizer, scheduler
+    # make sure the dataset exists
+    dataset_path = os.path.expanduser(config.env.data)
+    if not os.path.exists(dataset_path):
+        raise Exception("Dataset at provided path {} not found!".format(dataset_path))
 
-
-# def get_batch(device, batch_size=256, max_len=K):
-#     batch_inds = np.random.choice(
-#         np.arange(num_trajectories),
-#         size=batch_size,
-#         replace=True,
-#         p=p_sample,  # reweights so we sample according to timesteps
-#     )
-
-#     s, a, r, d, rtg, timesteps, mask = [], [], [], [], [], [], []
-#     for i in range(batch_size):
-#         traj = trajectories[int(sorted_inds[batch_inds[i]])]
-#         si = random.randint(0, traj["rewards"].shape[0] - 1)
-
-#         # get sequences from dataset
-#         s.append(traj["observations"][si : si + max_len].reshape(1, -1, state_dim))
-#         a.append(traj["actions"][si : si + max_len].reshape(1, -1, act_dim))
-#         r.append(traj["rewards"][si : si + max_len].reshape(1, -1, 1))
-#         if "terminals" in traj:
-#             d.append(traj["terminals"][si : si + max_len].reshape(1, -1))
-#         else:
-#             d.append(traj["dones"][si : si + max_len].reshape(1, -1))
-#         timesteps.append(np.arange(si, si + s[-1].shape[1]).reshape(1, -1))
-#         timesteps[-1][timesteps[-1] >= max_ep_len] = max_ep_len - 1  # padding cutoff
-#         rtg.append(
-#             discount_cumsum(traj["rewards"][si:], gamma=1.0)[
-#                 : s[-1].shape[1] + 1
-#             ].reshape(1, -1, 1)
-#         )
-#         if rtg[-1].shape[1] <= s[-1].shape[1]:
-#             rtg[-1] = np.concatenate([rtg[-1], np.zeros((1, 1, 1))], axis=1)
-
-#         # padding and state + reward normalization
-#         tlen = s[-1].shape[1]
-#         s[-1] = np.concatenate(
-#             [np.zeros((1, max_len - tlen, state_dim)), s[-1]], axis=1
-#         )
-#         s[-1] = (s[-1] - state_mean) / state_std
-#         a[-1] = np.concatenate(
-#             [np.ones((1, max_len - tlen, act_dim)) * -10.0, a[-1]], axis=1
-#         )
-#         r[-1] = np.concatenate([np.zeros((1, max_len - tlen, 1)), r[-1]], axis=1)
-#         d[-1] = np.concatenate([np.ones((1, max_len - tlen)) * 2, d[-1]], axis=1)
-#         # rtg[-1] = (
-#         #     np.concatenate([np.zeros((1, max_len - tlen, 1)), rtg[-1]], axis=1) / scale
-#         # )
-#         timesteps[-1] = np.concatenate(
-#             [np.zeros((1, max_len - tlen)), timesteps[-1]], axis=1
-#         )
-#         mask.append(
-#             np.concatenate([np.zeros((1, max_len - tlen)), np.ones((1, tlen))], axis=1)
-#         )
-
-#     s = torch.from_numpy(np.concatenate(s, axis=0)).to(
-#         dtype=torch.float32, device=device
-#     )
-#     a = torch.from_numpy(np.concatenate(a, axis=0)).to(
-#         dtype=torch.float32, device=device
-#     )
-#     r = torch.from_numpy(np.concatenate(r, axis=0)).to(
-#         dtype=torch.float32, device=device
-#     )
-#     d = torch.from_numpy(np.concatenate(d, axis=0)).to(dtype=torch.long, device=device)
-#     rtg = torch.from_numpy(np.concatenate(rtg, axis=0)).to(
-#         dtype=torch.float32, device=device
-#     )
-#     timesteps = torch.from_numpy(np.concatenate(timesteps, axis=0)).to(
-#         dtype=torch.long, device=device
-#     )
-#     mask = torch.from_numpy(np.concatenate(mask, axis=0)).to(device=device)
-
-#     return s, a, r, d, rtg, timesteps, mask
-
-
-def setup_env(config):
     # load basic metadata from training file
     print("\n============= Loaded Environment Metadata =============")
-    env_meta = FileUtils.get_env_metadata_from_dataset(dataset_path=config.data)
+    env_meta = FileUtils.get_env_metadata_from_dataset(dataset_path=config.env.data)
     shape_meta = FileUtils.get_shape_metadata_from_dataset(
-        dataset_path=config.data, all_obs_keys=config.all_obs_keys, verbose=True
+        dataset_path=config.env.data, all_obs_keys=config.all_obs_keys, verbose=True
     )
+
+    if config.experiment.env is not None:
+        env_meta["env_name"] = config.experiment.env
+        print(
+            "=" * 30
+            + "\n"
+            + "Replacing Env to {}\n".format(env_meta["env_name"])
+            + "=" * 30
+        )
 
     # create environment
     envs = OrderedDict()
-    if config.rollout.enabled:
+    if config.experiment.rollout.enabled:
         # create environments for validation runs
-        env_names = [config.env_name]
+        env_names = [env_meta["env_name"]]
 
-        if config.additional_envs is not None:
-            for name in config.additional_envs:
+        if config.experiment.additional_envs is not None:
+            for name in config.experiment.additional_envs:
                 env_names.append(name)
 
         for env_name in env_names:
@@ -164,15 +118,35 @@ def setup_env(config):
                 env_meta=env_meta,
                 env_name=env_name,
                 render=False,
-                render_offscreen=config.render_video,
+                render_offscreen=config.experiment.render_video,
                 use_image_obs=shape_meta["use_images"],
             )
             envs[env.name] = env
             print(envs[env.name])
-    return envs, env_meta, shape_meta
 
+    print("")
 
-def setup_dataloaders(config, shape_meta):
+    # setup for a new training run
+    data_logger = DataLogger(
+        log_dir,
+        log_tb=config.experiment.logging.log_tb,
+    )
+    model = algo_factory(
+        algo_name=config.algo_name,
+        config=config,
+        obs_key_shapes=shape_meta["all_shapes"],
+        ac_dim=shape_meta["ac_dim"],
+        device=device,
+    )
+
+    # save the config as a json file
+    with open(os.path.join(log_dir, "..", "config.json"), "w") as outfile:
+        json.dump(config, outfile, indent=4)
+
+    print("\n============= Model Summary =============")
+    print(model)  # print model summary
+    print("")
+
     # load training data
     trainset, validset = TrainUtils.load_data_for_training(
         config, obs_keys=shape_meta["all_obs_keys"]
@@ -181,7 +155,6 @@ def setup_dataloaders(config, shape_meta):
     print("\n============= Training Dataset =============")
     print(trainset)
     print("")
-    print(trainset[0])
 
     # maybe retreve statistics for normalizing observations
     obs_normalization_stats = None
@@ -197,123 +170,238 @@ def setup_dataloaders(config, shape_meta):
         num_workers=config.train.num_data_workers,
         drop_last=True,
     )
-    return train_loader, None
 
-
-def eval_episodes(
-    env, model, state_dim, act_dim, num_eval_episodes=5, max_ep_len=1000, device="cpu"
-):
-    returns, lengths = [], []
-    for _ in range(num_eval_episodes):
-        with torch.no_grad():
-            ret, length = evaluate_episode_rtg(
-                env,
-                state_dim,
-                act_dim,
-                model,
-                max_ep_len=max_ep_len,
-                # scale=scale,
-                # target_return=target_rew / scale,
-                # mode=mode,
-                # state_mean=state_mean,
-                # state_std=state_std,
-                device=device,
-            )
-        returns.append(ret)
-        lengths.append(length)
-    return {"return_mean": np.mean(returns), "return_std": np.std(returns)}
-    # return {
-    #     f"target_{target_rew}_return_mean": np.mean(returns),
-    #     f"target_{target_rew}_return_std": np.std(returns),
-    #     f"target_{target_rew}_length_mean": np.mean(lengths),
-    #     f"target_{target_rew}_length_std": np.std(lengths),
-    # }
-
-
-def train(config, device):
-    print("\n============= New Training Run with Config =============")
-    print(config)
-    print("")
-    log_dir, ckpt_dir, video_dir = TrainUtils.get_exp_dir(config)
-
-    if config.experiment.logging.terminal_output_to_txt:
-        # log stdout and stderr to a text file
-        logger = PrintLogger(os.path.join(log_dir, "log.txt"))
-        sys.stdout = logger
-        sys.stderr = logger
-
-    # read config to set up metadata for observation modalities (e.g. detecting rgb observations)
-    ObsUtils.initialize_obs_utils_with_config(config)
-
-    # make sure the dataset exists
-    dataset_path = os.path.expanduser(config.env.data)
-    if not os.path.exists(dataset_path):
-        raise Exception("Dataset at provided path {} not found!".format(dataset_path))
-
-    (
-        env,
-        env_meta,
-        shape_meta,
-    ) = setup_env(config.env)
-
-    state_dim = sum(
-        sum([shape_meta["all_shapes"][k] for k in shape_meta["all_obs_keys"]], [])
-    )
-    act_dim = shape_meta["ac_dim"]
-    model = DecisionTransformer(state_dim=state_dim, act_dim=act_dim, **config.model)
-    model = model.to(device)
-
-    print("\n============= Model Summary =============")
-    print(model)  # print model summary
-    print("")
-
-    optimizer, scheduler = setup_optimizer(model, config.algo)
-    train_loader, val_loader = setup_dataloaders(config, shape_meta)
-    loss_fn = lambda s_hat, a_hat, r_hat, s, a, r: torch.mean((a_hat - a) ** 2)
-
-    trainer = SequenceTrainer(
-        model=model,
-        optimizer=optimizer,
-        batch_size=config.train.batch_size,
-        scheduler=scheduler,
-        loaders={"train": train_loader, "val": val_loader},
-        loss_fn=loss_fn,
-        device=device,
-        eval_fns=[eval_episodes],
-    )
-
-    for iter in range(config.train.max_iters):
-        outputs = trainer.train_iteration(
-            num_steps=config.train.num_steps_per_iter,
-            iter_num=iter + 1,
-            print_logs=True,
+    if config.experiment.validate:
+        # cap num workers for validation dataset at 1
+        num_workers = min(config.train.num_data_workers, 1)
+        valid_sampler = validset.get_dataset_sampler()
+        valid_loader = DataLoader(
+            dataset=validset,
+            sampler=valid_sampler,
+            batch_size=config.train.batch_size,
+            shuffle=(valid_sampler is None),
+            num_workers=num_workers,
+            drop_last=True,
         )
-        if config.experiment.log_to_wandb:
-            wandb.log(outputs)
+    else:
+        valid_loader = None
 
-        if iter % config.train.eval_every == 0:
-            eval_outputs = eval_episodes(
-                env,
-                model,
-                state_dim,
-                act_dim,
-                config.train.num_eval_episodes,
-                config.train.max_ep_len,
-                device,
+    # main training loop
+    best_valid_loss = None
+    best_return = (
+        {k: -np.inf for k in envs} if config.experiment.rollout.enabled else None
+    )
+    best_success_rate = (
+        {k: -1.0 for k in envs} if config.experiment.rollout.enabled else None
+    )
+    last_ckpt_time = time.time()
+
+    # number of learning steps per epoch (defaults to a full dataset pass)
+    train_num_steps = config.experiment.epoch_every_n_steps
+    valid_num_steps = config.experiment.validation_epoch_every_n_steps
+
+    for epoch in range(1, config.train.num_epochs + 1):  # epoch numbers start at 1
+        step_log = TrainUtils.run_epoch(
+            model=model,
+            data_loader=train_loader,
+            epoch=epoch,
+            num_steps=train_num_steps,
+        )
+        model.on_epoch_end(epoch)
+
+        if config.experiment.log_to_wandb:
+            log_w_prefix = {f"train/{k}": v for k, v in step_log.items()}
+            wandb.log(step_log)
+
+        # setup checkpoint path
+        epoch_ckpt_name = "model_epoch_{}".format(epoch)
+
+        # check for recurring checkpoint saving conditions
+        should_save_ckpt = False
+        if config.experiment.save.enabled:
+            time_check = (config.experiment.save.every_n_seconds is not None) and (
+                time.time() - last_ckpt_time > config.experiment.save.every_n_seconds
             )
+            epoch_check = (
+                (config.experiment.save.every_n_epochs is not None)
+                and (epoch > 0)
+                and (epoch % config.experiment.save.every_n_epochs == 0)
+            )
+            epoch_list_check = epoch in config.experiment.save.epochs
+            should_save_ckpt = time_check or epoch_check or epoch_list_check
+        ckpt_reason = None
+        if should_save_ckpt:
+            last_ckpt_time = time.time()
+            ckpt_reason = "time"
+
+        print("Train Epoch {}".format(epoch))
+        print(json.dumps(step_log, sort_keys=True, indent=4))
+        for k, v in step_log.items():
+            if k.startswith("Time_"):
+                data_logger.record("Timing_Stats/Train_{}".format(k[5:]), v, epoch)
+            else:
+                data_logger.record("Train/{}".format(k), v, epoch)
+
+        # Evaluate the model on validation set
+        if config.experiment.validate:
+            with torch.no_grad():
+                step_log = TrainUtils.run_epoch(
+                    model=model,
+                    data_loader=valid_loader,
+                    epoch=epoch,
+                    validate=True,
+                    num_steps=valid_num_steps,
+                )
+            for k, v in step_log.items():
+                if k.startswith("Time_"):
+                    data_logger.record("Timing_Stats/Valid_{}".format(k[5:]), v, epoch)
+                else:
+                    data_logger.record("Valid/{}".format(k), v, epoch)
+
+            print("Validation Epoch {}".format(epoch))
+            print(json.dumps(step_log, sort_keys=True, indent=4))
+
+            # save checkpoint if achieve new best validation loss
+            valid_check = "Loss" in step_log
+            if valid_check and (
+                best_valid_loss is None or (step_log["Loss"] <= best_valid_loss)
+            ):
+                best_valid_loss = step_log["Loss"]
+                if (
+                    config.experiment.save.enabled
+                    and config.experiment.save.on_best_validation
+                ):
+                    epoch_ckpt_name += "_best_validation_{}".format(best_valid_loss)
+                    should_save_ckpt = True
+                    ckpt_reason = "valid" if ckpt_reason is None else ckpt_reason
+
+        # Evaluate the model by by running rollouts
+
+        # do rollouts at fixed rate or if it's time to save a new ckpt
+        video_paths = None
+        rollout_check = (epoch % config.experiment.rollout.rate == 0) or (
+            should_save_ckpt and ckpt_reason == "time"
+        )
+        if (
+            config.experiment.rollout.enabled
+            and (epoch > config.experiment.rollout.warmstart)
+            and rollout_check
+        ):
+
+            # wrap model as a RolloutPolicy to prepare for rollouts
+            rollout_model = DTRolloutPolicy(
+                model, obs_normalization_stats=obs_normalization_stats
+            )
+
+            num_episodes = config.experiment.rollout.n
+            all_rollout_logs, video_paths = TrainUtils.rollout_with_stats(
+                policy=rollout_model,
+                envs=envs,
+                horizon=config.experiment.rollout.horizon,
+                use_goals=config.use_goals,
+                num_episodes=num_episodes,
+                render=False,
+                video_dir=video_dir if config.experiment.render_video else None,
+                epoch=epoch,
+                video_skip=config.experiment.get("video_skip", 5),
+                terminate_on_success=config.experiment.rollout.terminate_on_success,
+            )
+
+            if config.experiment.log_to_wandb:
+                for k, v in video_paths.items():
+                    wandb.log({f"video_{k}": wandb.Video(v, fps=4, format="gif")})
+
+            # summarize results from rollouts to tensorboard and terminal
+            for env_name in all_rollout_logs:
+                rollout_logs = all_rollout_logs[env_name]
+
+                if config.experiment.log_to_wandb:
+                    log_w_prefix = {
+                        f"rollout/{env_name}/{k}": v for k, v in rollout_logs.items()
+                    }
+                    wandb.log(log_w_prefix)
+
+                for k, v in rollout_logs.items():
+                    if k.startswith("Time_"):
+                        data_logger.record(
+                            "Timing_Stats/Rollout_{}_{}".format(env_name, k[5:]),
+                            v,
+                            epoch,
+                        )
+                    else:
+                        data_logger.record(
+                            "Rollout/{}/{}".format(k, env_name),
+                            v,
+                            epoch,
+                            log_stats=True,
+                        )
+
+                print(
+                    "\nEpoch {} Rollouts took {}s (avg) with results:".format(
+                        epoch, rollout_logs["time"]
+                    )
+                )
+                print("Env: {}".format(env_name))
+                print(json.dumps(rollout_logs, sort_keys=True, indent=4))
+
+            # checkpoint and video saving logic
+            updated_stats = TrainUtils.should_save_from_rollout_logs(
+                all_rollout_logs=all_rollout_logs,
+                best_return=best_return,
+                best_success_rate=best_success_rate,
+                epoch_ckpt_name=epoch_ckpt_name,
+                save_on_best_rollout_return=config.experiment.save.on_best_rollout_return,
+                save_on_best_rollout_success_rate=config.experiment.save.on_best_rollout_success_rate,
+            )
+            best_return = updated_stats["best_return"]
+            best_success_rate = updated_stats["best_success_rate"]
+            epoch_ckpt_name = updated_stats["epoch_ckpt_name"]
+            should_save_ckpt = (
+                config.experiment.save.enabled and updated_stats["should_save_ckpt"]
+            ) or should_save_ckpt
+            if updated_stats["ckpt_reason"] is not None:
+                ckpt_reason = updated_stats["ckpt_reason"]
+
+        # Only keep saved videos if the ckpt should be saved (but not because of validation score)
+        should_save_video = (
+            should_save_ckpt and (ckpt_reason != "valid")
+        ) or config.experiment.keep_all_videos
+        if video_paths is not None and not should_save_video:
+            for env_name in video_paths:
+                os.remove(video_paths[env_name])
+
+        # Save model checkpoints based on conditions (success rate, validation loss, etc)
+        if should_save_ckpt:
+            TrainUtils.save_model(
+                model=model,
+                config=config,
+                env_meta=env_meta,
+                shape_meta=shape_meta,
+                ckpt_path=os.path.join(ckpt_dir, epoch_ckpt_name + ".pth"),
+                obs_normalization_stats=obs_normalization_stats,
+            )
+
+        # Finally, log memory usage in MB
+        process = psutil.Process(os.getpid())
+        mem_usage = int(process.memory_info().rss / 1000000)
+        data_logger.record("System/RAM Usage (MB)", mem_usage, epoch)
+        print("\nEpoch {} Memory Usage: {} MB\n".format(epoch, mem_usage))
+
+    # terminate logging
+    data_logger.close()
 
 
 def main(args):
 
-    # if args.config is not None:
-    #     ext_cfg = json.load(open(args.config, "r"))
-    #     config = config_factory(ext_cfg["algo_name"])
-    #     # update config with external json - this will throw errors if
-    #     # the external config has keys not present in the base algo config
-    #     with config.values_unlocked():
-    #         config.update(ext_cfg)
-    # else:
-    config = config_factory("dt")
+    if args.config is not None:
+        ext_cfg = json.load(open(args.config, "r"))
+        config = config_factory(ext_cfg["algo_name"])
+        # update config with external json - this will throw errors if
+        # the external config has keys not present in the base algo config
+        with config.values_unlocked():
+            config.update(ext_cfg)
+    else:
+        config = config_factory(args.algo)
 
     if args.dataset is not None:
         config.env.data = args.dataset
@@ -349,7 +437,6 @@ def main(args):
     # catch error during training and print it
     res_str = "finished run successfully!"
     try:
-        setup(config)
         train(config, device=device)
     except Exception as e:
         res_str = "run failed with error:\n{}\n\n{}".format(e, traceback.format_exc())
@@ -366,6 +453,13 @@ if __name__ == "__main__":
         default=None,
         help="(optional) path to a config json that will be used to override the default settings. \
             If omitted, default settings are used. This is the preferred way to run experiments.",
+    )
+
+    # Algorithm Name
+    parser.add_argument(
+        "--algo",
+        type=str,
+        help="(optional) name of algorithm to run. Only needs to be provided if --config is not provided",
     )
 
     # Experiment Name (for tensorboard, saving models, etc.)
