@@ -17,6 +17,7 @@ Args:
 
 import argparse
 import json
+import pdb
 import numpy as np
 import time
 import os
@@ -67,18 +68,6 @@ def train(config, device):
         sys.stdout = logger
         sys.stderr = logger
 
-    exp_prefix = config.experiment.name
-    group_name = f"{exp_prefix}-{config.env.env_name}"
-    exp_prefix = f"{group_name}-{random.randint(int(1e5), int(1e6) - 1)}"
-
-    if config.experiment.log_to_wandb:
-        wandb.init(
-            name=exp_prefix,
-            group=group_name,
-            project="dt-adapters",
-            config=config,
-        )
-
     # read config to set up metadata for observation modalities (e.g. detecting rgb observations)
     ObsUtils.initialize_obs_utils_with_config(config)
 
@@ -93,6 +82,18 @@ def train(config, device):
     shape_meta = FileUtils.get_shape_metadata_from_dataset(
         dataset_path=config.env.data, all_obs_keys=config.all_obs_keys, verbose=True
     )
+
+    exp_prefix = config.experiment.name
+    group_name = f"{exp_prefix}-{env_meta['env_name']}"
+    exp_prefix = f"{group_name}-{random.randint(int(1e5), int(1e6) - 1)}"
+
+    if config.experiment.log_to_wandb:
+        wandb.init(
+            name=exp_prefix,
+            group=group_name,
+            project="dt-adapters",
+            config=config,
+        )
 
     if config.experiment.env is not None:
         env_meta["env_name"] = config.experiment.env
@@ -113,6 +114,7 @@ def train(config, device):
             for name in config.experiment.additional_envs:
                 env_names.append(name)
 
+        env_meta["env_kwargs"]["has_offscreen_renderer"] = True
         for env_name in env_names:
             env = EnvUtils.create_env_from_metadata(
                 env_meta=env_meta,
@@ -155,6 +157,9 @@ def train(config, device):
     print("\n============= Training Dataset =============")
     print(trainset)
     print("")
+    # import ipdb
+
+    # ipdb.set_trace()
 
     # maybe retreve statistics for normalizing observations
     obs_normalization_stats = None
