@@ -290,6 +290,7 @@ class DT(BC):
         losses = OrderedDict()
         a_target = batch["actions"]
         actions = predictions["actions"]
+
         losses["l2_loss"] = nn.MSELoss()(actions, a_target)
         # losses["l1_loss"] = nn.SmoothL1Loss()(actions, a_target)
         # cosine direction loss on eef delta position

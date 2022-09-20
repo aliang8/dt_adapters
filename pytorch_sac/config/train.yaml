@@ -1,0 +1,38 @@
+defaults:
+    - agent: sac
+
+env: pick-place-v2
+
+# this needs to be specified manually
+experiment: metaworld_pick_and_place
+
+num_train_steps: 1e6 # 1 million training steps
+replay_buffer_capacity: ${num_train_steps}
+max_episode_steps: 500
+num_seed_steps: 5000
+
+eval_frequency: 10000
+save_every_steps: 10000
+num_eval_episodes: 5
+
+device: cuda
+
+# logger
+log_frequency: 10000
+log_save_tb: false
+
+# video recorder
+save_video: true
+
+log_to_wandb: true
+
+seed: 1
+
+experiment_dir: /home/anthony/dt_adapters/pytorch_sac/outputs/
+checkpoint_path: ""
+
+# hydra configuration
+# hydra:
+#     name: ${env}
+#     run:
+#         dir: ./exp/${now:%Y.%m.%d}/${now:%H%M}_${agent.name}_${experiment}
