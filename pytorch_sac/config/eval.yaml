@@ -1,7 +1,7 @@
 defaults:
     - agent: sac
 
-env: pick-place-v2
+env: window-open-v2-goal-observable
 random_hand_init: false
 
 # this needs to be specified manually
@@ -21,19 +21,14 @@ device: cuda
 # logger
 log_frequency: 10000
 log_save_tb: false
+log_to_wandb: false
 
 # video recorder
 save_video: true
 
-log_to_wandb: true
-
 seed: 0
-
 experiment_dir: /home/anthony/dt_adapters/pytorch_sac/outputs/
-checkpoint_path: ""
+checkpoint_path: /home/anthony/dt_adapters/pytorch_sac/outputs/mw-dc/${env}/models/step_50000.pt
 
-# hydra configuration
-# hydra:
-#     name: ${env}
-#     run:
-#         dir: ./exp/${now:%Y.%m.%d}/${now:%H%M}_${agent.name}_${experiment}
+# for eval
+num_rollouts: 10

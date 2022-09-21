@@ -35,7 +35,10 @@ class VideoRecorder(object):
     def save(self, file_name, step, logger):
         if self.enabled:
             path = os.path.join(self.save_dir, file_name)
+            print(path)
             imageio.mimsave(path, self.frames, fps=self.fps)
-            logger.log_video(
-                "rollout_video", np.array(self.frames).transpose(0, 3, 1, 2), step
-            )
+
+            if logger is not None:
+                logger.log_video(
+                    "rollout_video", np.array(self.frames).transpose(0, 3, 1, 2), step
+                )

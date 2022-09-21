@@ -30,5 +30,10 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/anthony/.mujoco/mujoco210/bin
 
 Extra setup: installing robosuite, robomimic, etc
 
+Collect demonstations from trained RL policies
+```
+CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 eval.py num_rollouts=10 env=window-open-v2-goal-observable checkpoint_path=/path/to/checkpoint
+```
+
 # TODO
 [ ] Collect demonstrations for metaworld environments

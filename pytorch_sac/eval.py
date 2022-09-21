@@ -12,7 +12,6 @@ import time
 import pickle as pkl
 
 from video import VideoRecorder
-from logger import Logger
 from replay_buffer import ReplayBuffer
 import utils
 
@@ -20,6 +19,7 @@ import utils
 import hydra
 import metaworld
 import random
+from tqdm import tqdm
 
 # def make_env(cfg):
 #     """Helper function to create dm_control environment"""
@@ -72,15 +72,6 @@ class Workspace(object):
 
         self.cfg = cfg
 
-        self.logger = Logger(
-            cfg,
-            self.work_dir,
-            save_tb=cfg.log_save_tb,
-            save_wb=cfg.log_to_wandb,
-            log_frequency=cfg.log_frequency,
-            agent=cfg.agent.name,
-        )
-
         utils.set_seed_everywhere(cfg.seed)
         self.device = torch.device(cfg.device)
         self.env = make_env(cfg)
@@ -109,13 +100,13 @@ class Workspace(object):
         self.video_recorder = VideoRecorder(self.work_dir if cfg.save_video else None)
         self.step = 0
 
-    def evaluate(self):
+    def gather_rollouts(self):
         average_episode_reward = 0
         success_rate = 0.0
-        for episode in range(self.cfg.num_eval_episodes):
+        for episode in tqdm(range(self.cfg.num_rollouts)):
             obs = self.env.reset()
             self.agent.reset()
-            self.video_recorder.init(enabled=(episode == 0))  # save the first episode
+            self.video_recorder.init()
             done = False
             episode_reward = 0
             ep_length = 0
@@ -132,89 +123,20 @@ class Workspace(object):
                 ep_length += 1
 
             average_episode_reward += episode_reward
-            self.video_recorder.save(f"{self.step}.mp4", self.step, self.logger)
-        average_episode_reward /= self.cfg.num_eval_episodes
-        success_rate /= self.cfg.num_eval_episodes
-        self.logger.log("eval/episode_reward", average_episode_reward, self.step)
-        self.logger.log("eval/success_rate", success_rate, self.step)
+            self.video_recorder.save(f"rollout_{episode}.mp4", self.step, None)
+        average_episode_reward /= self.cfg.num_rollouts
+        success_rate /= self.cfg.num_rollouts
 
-        self.logger.dump(self.step)
-
-    def run(self):
-        episode, episode_reward, done = 0, 0, True
-        start_time = time.time()
-        print("start training...")
-        # self.evaluate()
-
-        while self.step < self.cfg.num_train_steps:
-            if done or episode_step == self.env.max_path_length:
-                if self.step > 0:
-                    self.logger.log(
-                        "train/duration", time.time() - start_time, self.step
-                    )
-                    start_time = time.time()
-
-                    self.logger.dump(
-                        self.step, save=(self.step > self.cfg.num_seed_steps)
-                    )
-
-                # evaluate agent periodically
-                if self.step > 0 and self.step % self.cfg.eval_frequency == 0:
-                    self.logger.log("eval/episode", episode, self.step)
-                    self.evaluate()
-
-                self.logger.log("train/episode_reward", episode_reward, self.step)
-
-                obs = self.env.reset()
-                self.agent.reset()
-                done = False
-                episode_reward = 0
-                episode_step = 0
-                episode += 1
-
-                self.logger.log("train/episode", episode, self.step)
-
-            if self.step != 0 and self.step % self.cfg.save_every_steps == 0:
-                ckpt_dir = os.path.join(self.work_dir, "models")
-                os.makedirs(ckpt_dir, exist_ok=True)
-                path = os.path.join(ckpt_dir, f"step_{self.step}.pt")
-                print(f"saving model to {path}")
-                torch.save(self.agent.state_dict(), path)
-
-            # sample action for data collection
-            if self.step < self.cfg.num_seed_steps:
-                action = self.env.action_space.sample()
-            else:
-                with utils.eval_mode(self.agent):
-                    action = self.agent.act(obs, sample=True)
-
-            # run training update
-            if self.step >= self.cfg.num_seed_steps:
-                self.agent.update(self.replay_buffer, self.logger, self.step)
-
-            next_obs, reward, done, info = self.env.step(action)
-
-            # # allow infinite bootstrap
-            # done = float(done)
-            done = info["success"]
-
-            # print(episode_step)
-            # done_no_max = 0 if episode_step + 1 == self.cfg.max_episode_steps else done
-            done_no_max = 0 if episode_step + 1 == self.env.max_path_length else done
-
-            episode_reward += reward
-
-            self.replay_buffer.add(obs, action, reward, next_obs, done, done_no_max)
-
-            obs = next_obs
-            episode_step += 1
-            self.step += 1
+        print("=" * 50)
+        print(f"Success rate: {success_rate}")
+        print(f"Average episode reward: {average_episode_reward}")
+        print("=" * 50)
 
 
-@hydra.main(config_path="config", config_name="train")
+@hydra.main(config_path="config", config_name="eval")
 def main(cfg):
     workspace = Workspace(cfg)
-    workspace.run()
+    workspace.gather_rollouts()
 
 
 if __name__ == "__main__":
