@@ -28,7 +28,9 @@ save_video: true
 
 seed: 0
 experiment_dir: /home/anthony/dt_adapters/pytorch_sac/outputs/
-checkpoint_path: /home/anthony/dt_adapters/pytorch_sac/outputs/mw-dc/${env}/models/step_50000.pt
+restore_from_checkpoint: true 
 
 # for eval
 num_rollouts: 10
+demos_per_env: 200
+data_dir: /home/anthony/dt_adapters/pytorch_sac/data/

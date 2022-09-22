@@ -30,9 +30,14 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/anthony/.mujoco/mujoco210/bin
 
 Extra setup: installing robosuite, robomimic, etc
 
-Collect demonstations from trained RL policies
+Evaluate trained RL policies
 ```
-CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 eval.py num_rollouts=10 env=window-open-v2-goal-observable checkpoint_path=/path/to/checkpoint
+CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 pytorch_sac/eval.py num_rollouts=10 env=window-open-v2-goal-observable restore_from_checkpoint=true
+```
+
+Collect trajectories for all metaworld env
+```
+ CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 pytorch_sac/eval.py experiment=mw-dc demos_per_env=200
 ```
 
 # TODO
