@@ -9,6 +9,7 @@ import math
 import os
 import sys
 import time
+import glob
 import pickle as pkl
 
 from video import VideoRecorder
@@ -84,6 +85,7 @@ class Workspace(object):
         utils.set_seed_everywhere(cfg.seed)
         self.device = torch.device(cfg.device)
         self.env = make_env(cfg)
+        self.eval_env = make_env(cfg)
 
         cfg.agent.obs_dim = self.env.observation_space.shape[0]
         cfg.agent.action_dim = self.env.action_space.shape[0]
@@ -94,9 +96,14 @@ class Workspace(object):
 
         self.agent = hydra.utils.instantiate(cfg.agent, _recursive_=False)
 
-        if cfg.checkpoint_path:
-            print(f"loading model from {cfg.checkpoint_path}")
-            state_dict = torch.load(cfg.checkpoint_path)
+        if cfg.restore_from_checkpoint:
+            ckpt_dir = os.path.join(
+                cfg.experiment_dir, cfg.experiment, cfg.env, "models"
+            )
+            ckpt_file = sorted(glob.glob(f"{ckpt_dir}/*"))[-1]
+
+            print(f"loading model from {ckpt_file}")
+            state_dict = torch.load(ckpt_file)
             self.agent.load_from_checkpoint(state_dict)
 
         self.replay_buffer = ReplayBuffer(
@@ -113,16 +120,16 @@ class Workspace(object):
         average_episode_reward = 0
         success_rate = 0.0
         for episode in range(self.cfg.num_eval_episodes):
-            obs = self.env.reset()
+            obs = self.eval_env.reset()
             self.agent.reset()
             self.video_recorder.init(enabled=(episode == 0))  # save the first episode
             done = False
             episode_reward = 0
             ep_length = 0
-            while not done and ep_length < self.env.max_path_length:
+            while not done and ep_length < self.eval_env.max_path_length:
                 with utils.eval_mode(self.agent):
                     action = self.agent.act(obs, sample=False)
-                obs, reward, done, info = self.env.step(action)
+                obs, reward, done, info = self.eval_env.step(action)
                 done = info["success"]
                 if done:
                     success_rate += 1.0
@@ -147,7 +154,7 @@ class Workspace(object):
         # self.evaluate()
 
         while self.step < self.cfg.num_train_steps:
-            if done or episode_step == self.env.max_path_length:
+            if done or episode_step >= self.env.max_path_length:
                 if self.step > 0:
                     self.logger.log(
                         "train/duration", time.time() - start_time, self.step
@@ -157,11 +164,6 @@ class Workspace(object):
                     self.logger.dump(
                         self.step, save=(self.step > self.cfg.num_seed_steps)
                     )
-
-                # evaluate agent periodically
-                if self.step > 0 and self.step % self.cfg.eval_frequency == 0:
-                    self.logger.log("eval/episode", episode, self.step)
-                    self.evaluate()
 
                 self.logger.log("train/episode_reward", episode_reward, self.step)
 
@@ -177,9 +179,16 @@ class Workspace(object):
             if self.step != 0 and self.step % self.cfg.save_every_steps == 0:
                 ckpt_dir = os.path.join(self.work_dir, "models")
                 os.makedirs(ckpt_dir, exist_ok=True)
-                path = os.path.join(ckpt_dir, f"step_{self.step}.pt")
+                path = os.path.join(ckpt_dir, f"step_{self.step:06d}.pt")
                 print(f"saving model to {path}")
-                torch.save(self.agent.state_dict(), path)
+                save_dict = self.agent.state_dict()
+                save_dict["step"] = self.step
+                torch.save(save_dict, path)
+
+            # evaluate agent periodically
+            if self.step > 0 and self.step % self.cfg.eval_frequency == 0:
+                self.logger.log("eval/episode", episode, self.step)
+                self.evaluate()
 
             # sample action for data collection
             if self.step < self.cfg.num_seed_steps:

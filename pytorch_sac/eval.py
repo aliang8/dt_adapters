@@ -9,6 +9,7 @@ import math
 import os
 import sys
 import time
+import glob
 import pickle as pkl
 
 from video import VideoRecorder
@@ -85,9 +86,16 @@ class Workspace(object):
 
         self.agent = hydra.utils.instantiate(cfg.agent, _recursive_=False)
 
-        if cfg.checkpoint_path:
-            print(f"loading model from {cfg.checkpoint_path}")
-            state_dict = torch.load(cfg.checkpoint_path)
+        if cfg.restore_from_checkpoint:
+            ckpt_dir = os.path.join(
+                cfg.experiment_dir, cfg.experiment, cfg.env, "models"
+            )
+            files = glob.glob(f"{ckpt_dir}/*")
+            files.sort(key=len)
+            ckpt_file = files[-1]
+
+            print(f"loading model from {ckpt_file}")
+            state_dict = torch.load(ckpt_file)
             self.agent.load_from_checkpoint(state_dict)
 
         self.replay_buffer = ReplayBuffer(
@@ -114,7 +122,9 @@ class Workspace(object):
                 with utils.eval_mode(self.agent):
                     action = self.agent.act(obs, sample=False)
                 obs, reward, done, info = self.env.step(action)
+                # print(done)
                 done = info["success"]
+                # print(info)
                 if done:
                     success_rate += 1.0
 
