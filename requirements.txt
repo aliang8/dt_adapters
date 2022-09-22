@@ -1,0 +1,14 @@
+numpy
+h5py
+psutil
+tqdm
+termcolor
+tensorboard
+tensorboardX
+imageio
+imageio-ffmpeg
+torch
+torchvision
+scipy
+moviepy
+imageio
