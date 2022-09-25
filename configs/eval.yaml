@@ -1,0 +1,22 @@
+data_dir: /home/anthony/dt_adapters/data/
+data_file: trajectories_block_only_no_images_50.hdf5
+seed: 0
+output_dir: /home/anthony/dt_adapters/outputs/
+model_ckpt_dir: /home/anthony/dt_adapters/outputs/train_dt_offline_dataset_size/seed=0,data.context_len=50,model.n_layer=4,model.n_head=4,data_file=trajectories_block_only_no_images_50.hdf5,-396679
+exp_name: train_dt_offline_model_size
+log_to_wandb: true
+
+num_processes: 0
+filter_envs_by_obj: block
+num_rollout_per_env: 5
+
+device: cuda
+target_return: 10
+
+data: 
+  context_len: 50
+  state_dim: 39
+  act_dim: 4
+  max_ep_len: 500
+  data_dir: ${data_dir}
+  data_file: ${data_file}

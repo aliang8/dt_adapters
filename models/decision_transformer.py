@@ -201,7 +201,6 @@ class DecisionTransformerSeparateState(TrajectoryModel):
 
     def get_action(self, states, actions, returns_to_go, obj_ids, timesteps, **kwargs):
         # we don't care about the past rewards in this model
-
         states = states.reshape(1, -1, self.state_dim)
         actions = actions.reshape(1, -1, self.act_dim)
         returns_to_go = returns_to_go.reshape(1, -1, 1)

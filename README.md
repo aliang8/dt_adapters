@@ -30,38 +30,32 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/anthony/.mujoco/mujoco210/bin
 
 Extra setup: installing robosuite, robomimic, etc
 
-Train RL policy
+## Data collection
 ```
+# Train RL policy with custom implementation (doesn't work)
 CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 pytorch_sac/train.py env=reach-wall-v2-goal-observable log_to_wandb=false
-```
 
-Evaluate trained RL policies
-```
-CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 pytorch_sac/eval.py num_rollouts=10 env=window-open-v2-goal-observable restore_from_checkpoint=true
-```
-
-Collect trajectories for all metaworld env
-```
-CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 pytorch_sac/save_dataset.py experiment=mw-dc-5M-t2 demos_per_env=10
-```
-
-Train Decision Transformer model using BC 
-```
-CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py --dataset=/home/anthony/dt_adapters/pytorch_sac/data/trajectories.hdf5 --algo=dt --name=test
-
-
-CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py
-```
-
-Train SAC policies with garage
-```
+# Train SAC policies with garage (works well for single task no randomization)
 CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 -m garage.examples.torch.sac_metaworld --env_name=assembly-v2-goal-observable --seed=0 --gpu=0
+
+# Eval SAC policies trained with garage
+CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 pytorch_sac/eval_garage.py demos_per_env=10 debug=true model=single_task_sac log_to_wandb=true
+
+# Collect demos using scripted policies
+# TODO: add argparsing here
+CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 collect_scripted_policy_demos.py
 ```
 
-Eval SAC policies trained with garage
+## Pretraining DT model 
 ```
-CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 pytorch_sac/eval_garage.py demos_per_env=10 debug=true model=single_task_sac log_to_wandb=true
+# Training
+CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py batch_size=32 data_file=trajectories_block_only_no_images_50.hdf5 exp_name=test log_to_wandb=false
+
+# Zero-shot inference
+CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 zero_shot_dt_eval.py num_processes=0
 ```
+
+
 
 # TODO
 [ ] Collect demonstrations for metaworld environments
