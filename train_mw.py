@@ -22,24 +22,11 @@ from models.decision_transformer import DecisionTransformerSeparateState
 from torch.utils.data import Dataset, Sampler
 from mw_dataset import MWDemoDataset
 import hydra
-
-KEYS_TO_USE = ["seed", "data.context_len", "model.n_layer", "model.n_head", "data_file"]
+from utils import create_exp_prefix, KEYS_TO_USE
 
 
 def chunk(indices, chunk_size):
     return torch.split(torch.tensor(indices), chunk_size)
-
-
-def create_exp_prefix(config):
-    out = ""
-    for key in KEYS_TO_USE:
-        keys = key.split(".")
-        value = config
-        for k in keys:
-            value = value[k]
-
-        out += f"{key}={value},"
-    return out
 
 
 def train_single_iteration(
@@ -149,18 +136,20 @@ def main(config):
     # train loop
     for epoch in tqdm(range(config.num_epochs)):
 
+        if config.log_to_wandb:
+            wandb.log({"train/epoch": epoch})
+
         if epoch % config.eval_every == 0:
             # run evaluation
             pass
 
         # save model
         if epoch % config.save_every == 0:
-            ckpt_dir = os.path.join(config.output_dir, config.exp_name, "models")
-            os.makedirs(ckpt_dir, exist_ok=True)
             path = os.path.join(ckpt_dir, f"epoch_{epoch:03d}.pt")
             print(f"saving model to {path}")
             save_dict = model.state_dict()
             save_dict["epoch"] = epoch
+            save_dict["config"] = config
             torch.save(save_dict, path)
 
         for step in range(config.num_steps_per_iter):

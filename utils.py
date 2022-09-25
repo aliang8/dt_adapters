@@ -12,3 +12,18 @@ def discount_cumsum(x, gamma):
 def split(a, n):
     k, m = divmod(len(a), n)
     return (a[i * k + min(i, m) : (i + 1) * k + min(i + 1, m)] for i in range(n))
+
+
+KEYS_TO_USE = ["seed", "data.context_len", "model.n_layer", "model.n_head", "data_file"]
+
+
+def create_exp_prefix(config):
+    out = ""
+    for key in KEYS_TO_USE:
+        keys = key.split(".")
+        value = config
+        for k in keys:
+            value = value[k]
+
+        out += f"{key}={value},"
+    return out

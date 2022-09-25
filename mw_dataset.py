@@ -114,8 +114,8 @@ class MWDemoDataset(Dataset):
         all_states = np.concatenate(all_states, axis=0)
 
         self.state_mean, self.state_std = (
-            np.mean(states, axis=0),
-            np.std(states, axis=0) + 1e-6,
+            np.mean(all_states, axis=0),
+            np.std(all_states, axis=0) + 1e-6,
         )
 
     def __len__(self):

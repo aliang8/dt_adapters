@@ -63,6 +63,7 @@ experiment_grids = [
     },
     {
         "data_file": [
+            "trajectories_block_only_no_images_10.hdf5",
             "trajectories_block_only_no_images_50.hdf5",
         ],
         "model.n_layer": [6],
