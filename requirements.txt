@@ -12,3 +12,5 @@ torchvision
 scipy
 moviepy
 imageio
+wandb
+hydra-core

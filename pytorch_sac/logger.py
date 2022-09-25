@@ -156,6 +156,8 @@ class Logger(object):
                 entity="glamor",
             )
             self._sw = None
+        else:
+            self._sw = None
 
         # each agent has specific output format for training
         assert agent in AGENT_TRAIN_FORMAT

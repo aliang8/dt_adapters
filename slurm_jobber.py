@@ -8,18 +8,18 @@ from sklearn.model_selection import ParameterGrid
 from metaworld.envs import ALL_V2_ENVIRONMENTS_GOAL_OBSERVABLE
 
 
-PROGRAMS_PER_JOB = 8
+PROGRAMS_PER_JOB = 1
 
 # header for slurm, need to edit this
 HEADER = """#!/bin/bash 
 #SBATCH --job-name=train_dt_adapters
 #SBATCH --partition=debug
 #SBATCH --nodes=1
-#SBATCH --time=3-00:00:00
-#SBATCH --cpus-per-task=10
+#SBATCH --time=1-00:00:00
+#SBATCH --cpus-per-task=5
 #SBATCH --gpus-per-node=2080:1
 #SBATCH --nodelist=ink-ellie
-#SBATCH --output=/home/anthony/dt_adapters/pytorch_sac/slurm_output/%j.out
+#SBATCH --output=/home/anthony/dt_adapters/slurm_output/%j.out
 
 HOME=/home/anthony
 
@@ -32,11 +32,11 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/anthony/.mujoco/mujoco210/bin
 export TOKENIZERS_PARALLELISM=false 
 """
 
-# BASE_CMD = "CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train.py "
+BASE_CMD = "CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py "
 
-BASE_CMD = (
-    "CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python -m garage.examples.torch.sac_metaworld "
-)
+# BASE_CMD = (
+#     "CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python -m garage.examples.torch.sac_metaworld "
+# )
 
 
 # create slurm files
@@ -45,16 +45,37 @@ os.makedirs("slurm_files", exist_ok=True)
 # create param grid
 envs = list(ALL_V2_ENVIRONMENTS_GOAL_OBSERVABLE.keys())
 
-# param_grid = {"env": envs, "experiment": experiments, "log_to_wandb": ["true"]}
-# configs = list(ParameterGrid(param_grid))
 configs = []
 
-skip = []
-# for env in envs:
-#     configs.append({"env": env, "log_to_wandb": "true"})
+experiment_grids = [
+    {
+        "data.context_len": [30, 50, 100],
+        "log_to_wandb": ["true"],
+        "exp_name": ["train_dt_offline_varying_context_len"],
+    },
+    {
+        "data_file": [
+            "trajectories_block_only_no_images_10.hdf5",
+            "trajectories_block_only_no_images_50.hdf5",
+        ],
+        "log_to_wandb": ["true"],
+        "exp_name": ["train_dt_offline_dataset_size"],
+    },
+    {
+        "data_file": [
+            "trajectories_block_only_no_images_50.hdf5",
+        ],
+        "model.n_layer": [6],
+        "model.n_head": [6],
+        "batch_size": [32],
+        "log_to_wandb": ["true"],
+        "exp_name": ["train_dt_offline_model_size"],
+    },
+]
+for grid in experiment_grids:
+    config = list(ParameterGrid(grid))
+    configs.extend(config)
 
-for env in envs:
-    configs.append({"--env_name": env, "--seed": 0, "--gpu": 0})
 
 # create individual slurm files
 # chunk configs
