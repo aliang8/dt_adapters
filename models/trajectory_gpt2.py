@@ -3,7 +3,8 @@
 from dataclasses import dataclass
 import torch
 import torch.nn as nn
-from transformers import GPT2Model, GPT2LMHeadModel
+
+# from transformers import GPT2Model, GPT2LMHeadModel
 from transformers.models.gpt2.modeling_gpt2 import GPT2Block
 from typing import Optional, Tuple, Union
 from transformers.modeling_outputs import (
@@ -13,6 +14,7 @@ from transformers.modeling_outputs import (
     TokenClassifierOutput,
 )
 from transformers.utils import logging
+from transformers.models.gpt2 import GPT2LMHeadModel
 
 logger = logging.get_logger(__name__)
 

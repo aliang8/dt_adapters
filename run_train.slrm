@@ -1,0 +1,29 @@
+#!/bin/bash 
+#SBATCH --job-name=train_dt_adapters
+#SBATCH --partition=debug
+#SBATCH --nodes=1
+#SBATCH --time=2-00:00:00
+#SBATCH --cpus-per-task=5
+#SBATCH --gpus-per-node=2080:1
+#SBATCH --nodelist=ink-ellie
+#SBATCH --output=/home/anthony/dt_adapters/slurm_output/%j.out
+
+HOME=/home/anthony
+
+# conda activate robomimic_venv
+
+wandb login 0815350e6c514d36864729063abb10fc03898c00
+export PYTHONPATH=$PWD:$PYTHONPATH
+export LD_LIBRARY_PATH=/usr/local/cuda-10.1/lib64
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/anthony/.mujoco/mujoco200/bin
+export TOKENIZERS_PARALLELISM=false 
+
+nvidia-smi
+
+# CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train.py \
+#     --dataset=/home/anthony/RoboTurkPilot/bins-Cereal/low_dim.hdf5 \
+#     --algo=dt \
+#     --name=bins-Cereal-BC
+
+CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py exp_name=train_dt_offline data_file=trajectories_block_only_no_images_10.hdf5

@@ -56,7 +56,7 @@ def train(config, device):
     # first set seeds
     np.random.seed(config.train.seed)
     torch.manual_seed(config.train.seed)
-
+    
     print("\n============= New Training Run with Config =============")
     print(config)
     print("")

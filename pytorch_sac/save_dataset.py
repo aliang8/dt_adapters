@@ -1,3 +1,7 @@
+"""
+Generates the behavior dataset via multiprocessing env rollouts
+"""
+
 import os
 import utils
 import torch
@@ -11,12 +15,24 @@ import h5py
 import numpy as np
 from mujoco_py import MjRenderContextOffscreen, MjSim, load_model_from_xml
 from metaworld.envs import ALL_V2_ENVIRONMENTS_GOAL_OBSERVABLE
+import torch.multiprocessing as mp
+
+
+def chunks(lst, n):
+    """Yield successive n-sized chunks from lst."""
+    for i in range(0, len(lst), n):
+        yield lst[i : i + n]
+
+
+def split(a, n):
+    k, m = divmod(len(a), n)
+    return (a[i * k + min(i, m) : (i + 1) * k + min(i + 1, m)] for i in range(n))
 
 
 class Workspace(object):
     def __init__(self, cfg):
-        self.work_dir = os.path.join(cfg.experiment_dir, cfg.experiment, cfg.env)
-        print(f"workspace: {self.work_dir}")
+        # self.work_dir = os.path.join(cfg.experiment_dir, cfg.experiment, cfg.env)
+        # print(f"workspace: {self.work_dir}")
 
         self.cfg = cfg
 
@@ -49,16 +65,13 @@ class Workspace(object):
         agent.load_from_checkpoint(state_dict)
         return env, agent
 
-    def create_dataset(self):
-        hf = h5py.File(os.path.join(self.cfg.data_dir, "trajectories.hdf5"), "w")
-
-        envs = list(ALL_V2_ENVIRONMENTS_GOAL_OBSERVABLE.keys())
+    def create_dataset(self, envs, results_queue):
         for env_name in tqdm(envs):
             env, agent = self.init_env_and_agent(env_name)
             average_episode_reward = 0
             success_rate = 0.0
             for episode in tqdm(range(self.cfg.demos_per_env)):
-                all_obs, dones, rewards, all_next_obs = [], [], [], []
+                all_obs, actions, dones, rewards, all_next_obs = [], [], [], [], []
 
                 obs = env.reset()
                 agent.reset()
@@ -78,6 +91,7 @@ class Workspace(object):
                     if done:
                         success_rate += 1.0
 
+                    actions.append(action)
                     all_next_obs.append(obs)
                     rewards.append(reward)
                     dones.append(done)
@@ -86,17 +100,25 @@ class Workspace(object):
                     ep_length += 1
 
                 all_obs = np.array(all_obs)
+                actions = np.array(actions)
                 dones = np.array(dones)
                 rewards = np.array(rewards)
                 all_next_obs = np.array(all_next_obs)
 
                 average_episode_reward += episode_reward
 
-                g = hf.create_group(f"{env}/demo_{episode}")
-                g.create_dataset("obs", data=all_obs)
-                g.create_dataset("reward", data=rewards)
-                g.create_dataset("done", data=dones)
-                g.create_dataset("next_obs", data=all_next_obs)
+                if results_queue is not None:
+                    results_queue.put(
+                        (
+                            env_name,
+                            episode,
+                            all_obs,
+                            actions,
+                            rewards,
+                            dones,
+                            all_next_obs,
+                        )
+                    )
 
             average_episode_reward /= self.cfg.demos_per_env
             success_rate /= self.cfg.demos_per_env
@@ -106,13 +128,66 @@ class Workspace(object):
             print(f"Average episode reward: {average_episode_reward}")
             print("=" * 50)
 
-        hf.close()
+
+def handle_output(cfg, results_queue):
+    hf = h5py.File(os.path.join(cfg.data_dir, cfg.dataset_file), "w")
+    while True:
+        out = results_queue.get()
+        if out is not None:
+            env_name, episode, all_obs, actions, rewards, dones, all_next_obs = out
+            g = hf.create_group(f"{env_name}/demo_{episode}")
+            g.create_dataset("obs", data=all_obs)
+            g.create_dataset("action", data=actions)
+            g.create_dataset("reward", data=rewards)
+            g.create_dataset("done", data=dones)
+            g.create_dataset("next_obs", data=all_next_obs)
+        else:
+            break
+    hf.close()
 
 
 @hydra.main(config_path="config", config_name="eval")
 def main(cfg):
+    torch.multiprocessing.set_start_method("spawn")
     workspace = Workspace(cfg)
-    workspace.create_dataset()
+
+    if cfg.mp:
+
+        results_queue = mp.Queue()
+
+        proc = mp.Process(
+            target=handle_output,
+            args=(
+                cfg,
+                results_queue,
+            ),
+        )
+
+        processes = []
+        proc.start()
+
+        envs = list(ALL_V2_ENVIRONMENTS_GOAL_OBSERVABLE.keys())[5:10]
+        # split up the envs
+        env_chunks = list(split(envs, cfg.num_processes))
+        print(len(env_chunks))
+
+        for rank in range(cfg.num_processes):
+            p = mp.Process(
+                target=workspace.create_dataset, args=(env_chunks[rank], results_queue)
+            )
+            p.start()
+            processes.append(p)
+        for p in processes:
+            p.join()
+
+        results_queue.put(None)
+        proc.join()
+
+    else:
+        envs = list(ALL_V2_ENVIRONMENTS_GOAL_OBSERVABLE.keys())[:5]
+        workspace.create_dataset(envs, results_queue=None)
+
+    print("done...")
 
 
 if __name__ == "__main__":
