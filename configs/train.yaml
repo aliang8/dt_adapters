@@ -37,8 +37,21 @@ model:
   component_hidden_size: 256
   action_tanh: True
 
+  stochastic: True 
+  log_std_min: -20
+  log_std_max: 2
+  remove_pos_embs: False
+  stochastic_tanh: False
+  approximate_entropy_samples: 1000
+  use_entropy: True 
+  target_entropy: True
+
+alpha_lr: 1e-4
+alpha_weight_decay: 1e-4
+
+
 # adapter configs
-use_adapter: True
+use_adapters: True
 model_ckpt_dir: /home/anthony/dt_adapters/outputs/train_dt_offline_dataset_size/seed=0,data.context_len=50,model.n_layer=4,model.n_head=4,data_file=trajectories_block_only_no_images_10.hdf5,-107777
 adapter_task_name: bin-picking-v2 # this should be the task name
 adapter:

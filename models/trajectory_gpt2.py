@@ -15,6 +15,8 @@ from transformers.modeling_outputs import (
 )
 from transformers.utils import logging
 from transformers.models.gpt2 import GPT2LMHeadModel
+from transformers.adapters.context import ForwardContext
+from transformers.adapters.composition import adjust_tensors_for_parallel
 
 logger = logging.get_logger(__name__)
 
@@ -91,6 +93,7 @@ class TrajectoryGPT2(GPT2LMHeadModel):
             "token_type_ids": token_type_ids,
         }
 
+    @ForwardContext.wrap
     def forward(
         self,
         input_ids: Optional[torch.LongTensor] = None,
@@ -202,6 +205,8 @@ class TrajectoryGPT2(GPT2LMHeadModel):
         if inputs_embeds is None:
             inputs_embeds = self.transformer.wte(input_ids)
 
+        inputs_embeds = self.transformer.invertible_adapters_forward(inputs_embeds)
+
         if lang_only_input:
             position_embeds = self.transformer.wpe(position_ids)
             hidden_states = inputs_embeds + position_embeds
@@ -279,6 +284,15 @@ class TrajectoryGPT2(GPT2LMHeadModel):
                 )
 
             hidden_states = outputs[0]
+
+            (attention_mask,) = adjust_tensors_for_parallel(
+                hidden_states, attention_mask
+            )
+
+            # also adjust output shape if necessary
+            if getattr(ForwardContext.get_context(), "adapters_parallelized", False):
+                output_shape = hidden_states.size()
+
             if use_cache is True:
                 presents = presents + (outputs[1],)
 

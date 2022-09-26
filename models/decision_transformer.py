@@ -23,6 +23,10 @@ from collections import OrderedDict
 # from robomimic.config.dt_config_mw import OBJECTS
 from mw_dataset import OBJECTS
 
+from torch.distributions import Normal, Independent
+from torch.distributions.transformed_distribution import TransformedDistribution
+from torch.distributions.transforms import TanhTransform
+
 
 class DecisionTransformerSeparateState(TrajectoryModel):
     def __init__(
@@ -34,6 +38,11 @@ class DecisionTransformerSeparateState(TrajectoryModel):
         obs_obj_max_len,
         hidden_size,
         component_hidden_size,
+        stochastic=False,
+        log_std_min=-20,
+        log_std_max=2,
+        remove_pos_embs=False,
+        stochastic_tanh=False,
         max_length=None,
         max_ep_len=4096,
         action_tanh=True,
@@ -45,7 +54,7 @@ class DecisionTransformerSeparateState(TrajectoryModel):
         config = transformers.GPT2Config(
             vocab_size=1,  # doesn't matter -- we don't use the vocab
             n_embd=hidden_size,
-            **kwargs
+            **kwargs,
         )
 
         # note: the only difference between this GPT2Model and the default Huggingface version
@@ -79,16 +88,41 @@ class DecisionTransformerSeparateState(TrajectoryModel):
 
         # note: we don't predict states or returns for the paper
         self.predict_state = torch.nn.Linear(hidden_size, self.state_dim)
-        self.predict_action = nn.Sequential(
-            *(
-                [nn.Linear(hidden_size, self.act_dim)]
-                + ([nn.Tanh()] if action_tanh else [])
+
+        if stochastic:
+            self.predict_action_mean = nn.Sequential(
+                nn.Linear(hidden_size, self.act_dim),
             )
-        )
+            self.predict_action_logstd = nn.Sequential(
+                nn.Linear(hidden_size, self.act_dim),
+            )
+        else:
+            self.predict_action = nn.Sequential(
+                *(
+                    [nn.Linear(hidden_size, self.act_dim)]
+                    + ([nn.Tanh()] if action_tanh else [])
+                )
+            )
+
         self.predict_return = torch.nn.Linear(hidden_size, 1)
 
+        # Settings from stochastic actions
+        self.stochastic = stochastic
+        self.log_std_min = log_std_min
+        self.log_std_max = log_std_max
+        self.stochastic_tanh = stochastic_tanh
+        self.remove_pos_embs = remove_pos_embs
+
     def forward(
-        self, states, actions, returns_to_go, obj_ids, timesteps, attention_mask=None
+        self,
+        states,
+        actions,
+        returns_to_go,
+        obj_ids,
+        timesteps,
+        target_actions=None,
+        attention_mask=None,
+        use_means=False,
     ):
         batch_size, seq_length = states.shape[0], states.shape[1]
         # import ipdb
@@ -151,10 +185,11 @@ class DecisionTransformerSeparateState(TrajectoryModel):
         returns_embeddings = self.embed_return(returns_to_go)
         time_embeddings = self.embed_timestep(timesteps.long())
 
-        # time embeddings are treated similar to positional embeddings
-        state_embeddings = state_embeddings + time_embeddings.squeeze(1)
-        action_embeddings = action_embeddings + time_embeddings.squeeze(1)
-        returns_embeddings = returns_embeddings + time_embeddings.squeeze(1)
+        if not self.remove_pos_embs:
+            # time embeddings are treated similar to positional embeddings
+            state_embeddings = state_embeddings + time_embeddings.squeeze(1)
+            action_embeddings = action_embeddings + time_embeddings.squeeze(1)
+            returns_embeddings = returns_embeddings + time_embeddings.squeeze(1)
 
         # this makes the sequence look like (R_1, s_1, a_1, R_2, s_2, a_2, ...)
         # which works nice in an autoregressive sense since states predict actions
@@ -185,16 +220,62 @@ class DecisionTransformerSeparateState(TrajectoryModel):
         # reshape x so that the second dimension corresponds to the original
         x = x.reshape(batch_size, seq_length, 3, self.hidden_size).permute(0, 2, 1, 3)
 
-        # get predictions
-        return_preds = self.predict_return(
-            x[:, 2]
-        )  # predict next return given state and action
-        state_preds = self.predict_state(
-            x[:, 2]
-        )  # predict next state given state and action
-        action_preds = self.predict_action(x[:, 1])  # predict next action given state
+        state_reps = x[:, 1]
+        action_reps = x[:, 2]
 
-        return state_preds, action_preds, return_preds
+        # get predictions
+
+        # predict next return given state and action
+        return_preds = self.predict_return(action_reps)
+
+        # predict next state given state and action
+        state_preds = self.predict_state(action_reps)
+
+        # predict next action given state
+        action_dist = None
+        if self.stochastic:
+            means = self.predict_action_mean(state_reps)
+            log_stds = self.predict_action_logstd(state_reps)
+
+            # Bound log of standard deviations
+            log_stds = torch.clamp(log_stds, self.log_std_min, self.log_std_max)
+            stds = torch.exp(log_stds)
+
+            if self.stochastic_tanh:
+                dist = TransformedDistribution(
+                    Normal(means, stds), TanhTransform(cache_size=1)
+                )
+                action_dist = Independent(dist, 1)
+            else:
+                action_dist = Independent(Normal(means, stds), 1)
+
+            # Sample from distribution or predict mean
+            if use_means:
+                if self.stochastic_tanh:
+                    action_preds = torch.tanh(action_dist.base_dist.base_dist.mean)
+                else:
+                    action_preds = action_dist.mean
+            else:
+                action_preds = action_dist.rsample()
+
+            if target_actions != None:
+                # Clamp target actions to prevent nans
+                eps = torch.finfo(target_actions.dtype).eps
+                target_actions = torch.clamp(target_actions, -1 + eps, 1 - eps)
+                action_log_probs = action_dist.log_prob(target_actions)
+                # entropies = action_dist.base_dist.entropy()
+                if self.stochastic_tanh:
+                    entropies = -action_dist.log_prob(
+                        action_dist.rsample(
+                            sample_shape=torch.Size([self.approximate_entropy_samples])
+                        )
+                    ).mean(dim=0)
+                else:
+                    entropies = action_dist.entropy()
+        else:
+            action_preds = self.predict_action(state_reps)
+
+        return state_preds, action_preds, return_preds, action_log_probs, entropies
 
     def reset(self):
         pass
@@ -277,14 +358,16 @@ class DecisionTransformerSeparateState(TrajectoryModel):
         else:
             attention_mask = None
 
-        _, action_preds, _ = self.forward(
+        _, action_preds, _, _, _ = self.forward(
             states,
             actions,
             returns_to_go,
             obj_ids,
             timesteps,
+            target_actions=None,
             attention_mask=attention_mask,
-            **kwargs
+            use_means=True,  # use mean action during evaluation
+            **kwargs,
         )
 
         return action_preds[0, -1], {}
