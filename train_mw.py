@@ -12,6 +12,8 @@ import traceback
 import wandb
 import random
 import torch
+import glob
+from omegaconf import OmegaConf
 from torch.utils.data import DataLoader
 from collections import OrderedDict
 
@@ -22,7 +24,8 @@ from models.decision_transformer import DecisionTransformerSeparateState
 from torch.utils.data import Dataset, Sampler
 from mw_dataset import MWDemoDataset
 import hydra
-from utils import create_exp_prefix, KEYS_TO_USE
+from utils import create_exp_prefix, KEYS_TO_USE, count_parameters
+from transformers.adapters.configuration import AdapterConfig
 
 
 def chunk(indices, chunk_size):
@@ -91,6 +94,37 @@ def main(config):
 
     # setup model
     model = DecisionTransformerSeparateState(**config.model)
+
+    print("base model params: ", count_parameters(model))
+
+    if config.use_adapter:
+        # loading from previous checkpoint
+        ckpt_file = sorted(glob.glob(f"{config.model_ckpt_dir}/models/*"))[-1]
+        print(f"loading pretrained model from {ckpt_file}")
+        state_dict = torch.load(ckpt_file)
+        model_config = state_dict["config"]
+
+        model = DecisionTransformerSeparateState(**model_config.model)
+        del state_dict["config"]
+        del state_dict["epoch"]
+        model.load_state_dict(state_dict, strict=True)
+
+        task_name = config.adapter_task_name
+        cfg = config.adapter
+        cfg = OmegaConf.to_container(cfg)
+        cfg["nonlinearity"] = None
+        cfg["reduction_factor"] = None
+        adapter_config = AdapterConfig.load(**cfg)
+
+        model.transformer.add_adapter(task_name, config=adapter_config)
+        # Freeze all model weights except of those of this adapter
+        model.transformer.train_adapter([task_name])
+
+        # Set the adapters to be used in every forward pass
+        model.transformer.set_active_adapters(task_name)
+
+        print("model params using adapter: ", count_parameters(model))
+
     model = model.to(device)
     model.train()
 

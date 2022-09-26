@@ -14,6 +14,10 @@ def split(a, n):
     return (a[i * k + min(i, m) : (i + 1) * k + min(i + 1, m)] for i in range(n))
 
 
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+
 KEYS_TO_USE = ["seed", "data.context_len", "model.n_layer", "model.n_head", "data_file"]
 
 
