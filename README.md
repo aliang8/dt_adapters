@@ -52,7 +52,7 @@ CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 collect_scripted_policy_demos.py
 CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py batch_size=32 data_file=trajectories_block_only_no_images_50.hdf5 exp_name=test log_to_wandb=false
 
 # Zero-shot inference
-CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 zero_shot_dt_eval.py num_processes=0
+CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 zero_shot_dt_eval.py num_processes=4 log_to_wandb=true
 ```
 
 

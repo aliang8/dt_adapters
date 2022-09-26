@@ -36,3 +36,12 @@ model:
   state_dim: 39
   component_hidden_size: 256
   action_tanh: True
+
+# adapter configs
+use_adapter: True
+model_ckpt_dir: /home/anthony/dt_adapters/outputs/train_dt_offline_dataset_size/seed=0,data.context_len=50,model.n_layer=4,model.n_head=4,data_file=trajectories_block_only_no_images_10.hdf5,-107777
+adapter_task_name: bin-picking-v2 # this should be the task name
+adapter:
+  config: pfeiffer+inv
+  nonlinearity: none 
+  reduction_factor: none

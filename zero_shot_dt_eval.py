@@ -87,9 +87,6 @@ def rollout(
             timesteps=timesteps.to(dtype=torch.long),
         )
         actions[-1] = action
-        import ipdb
-
-        ipdb.set_trace()
         action = action.detach().cpu().numpy()
 
         # if deterministic and "mean" in agent_info:
