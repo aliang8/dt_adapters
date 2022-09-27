@@ -1,16 +1,11 @@
+# training config
+seed: 1
 save_every: 10
 eval_every: 1
 num_steps_per_epoch: 50
 skip_first_eval: True
 num_epochs: 100
 batch_size: 64
-data_dir: /home/anthony/dt_adapters/data/
-data_file: trajectories_block_only_no_images_10.hdf5
-seed: 0
-num_data_workers: 1
-output_dir: /home/anthony/dt_adapters/outputs
-exp_name: test_train_dt
-log_to_wandb: False
 
 lr: 1e-4
 weight_decay: 1e-4
@@ -18,7 +13,18 @@ alpha_lr: 1e-4
 alpha_weight_decay: 1e-4
 warmup_steps: 10000
 
-# online-finetuning
+# logging
+output_dir: /home/anthony/dt_adapters/outputs
+exp_name: test_train_dt
+log_to_wandb: False
+
+# video configs
+log_eval_videos: True
+fps: 20
+image_height: 128
+image_width: 128
+
+# online_finetuning
 online_training: True
 # model_ckpt_dir: /home/anthony/dt_adapters/outputs/train_dt_offline_dataset_size/seed=0,data.context_len=50,model.n_layer=4,model.n_head=4,data_file=trajectories_block_only_no_images_10.hdf5,-107777
 model_ckpt_dir: /home/anthony/dt_adapters/outputs/train_dt_offline_dataset_size_stochastic_2/seed=0,data.context_len=50,model.n_layer=4,model.n_head=4,data_file=trajectories_block_only_no_images_10.hdf5,-236768
@@ -30,11 +36,16 @@ num_warmup_rollouts: 10
 target_return: 3000
 scale: 1000
 
-# video configs
-log_eval_videos: True
-fps: 20
-image_height: 128
-image_width: 128
+# data 
+num_data_workers: 1
+
+data: 
+  context_len: 50
+  state_dim: 39
+  act_dim: 4
+  max_ep_len: 500
+  data_dir: /home/anthony/dt_adapters/data/
+  data_file: trajectories_block_only_no_images_10.hdf5
 
 # adapter configs
 use_adapters: True
@@ -43,14 +54,6 @@ adapter:
   config: pfeiffer+inv
   nonlinearity: none 
   reduction_factor: none
-
-data: 
-  context_len: 50
-  state_dim: 39
-  act_dim: 4
-  max_ep_len: 500
-  data_dir: ${data_dir}
-  data_file: ${data_file}
 
 model:
   hidden_size: 768

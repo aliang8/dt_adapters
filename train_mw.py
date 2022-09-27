@@ -69,7 +69,9 @@ class Trainer(object):
                 loss = torch.nn.MSELoss(kwargs["action_preds"], kwargs["action_target"])
             return loss
 
-    def rollout(self, use_means=False, attend_to_rtg=False):
+        self.loss_fn = loss_fn
+
+    def rollout(self, use_means=False, attend_to_rtg=False, phase="train"):
         """Sample a single episode of the agent in the environment."""
         env_steps = []
         agent_infos = []
@@ -80,9 +82,10 @@ class Trainer(object):
         state_dim = self.model.state_dim
         act_dim = self.model.act_dim
 
-        if self.config.log_eval_videos:
-            # TODO: set to false
-            self.env.visualize()
+        if self.config.log_eval_videos and phase == "eval":
+            self.env._visualize = True
+        else:
+            self.env._visualize = False
 
         state_mean = torch.from_numpy(self.dataset.state_mean).to(device=self.device)
         state_std = torch.from_numpy(self.dataset.state_std).to(device=self.device)
@@ -97,13 +100,12 @@ class Trainer(object):
         use_rtg_mask = torch.tensor([attend_to_rtg]).reshape(1, 1).to(self.device)
 
         target_return = torch.tensor(
-            self.config.target_return, device=self.device, dtype=torch.float32
+            self.config.target_return / self.config.scale,
+            device=self.device,
+            dtype=torch.float32,
         ).reshape(1, 1)
 
         timesteps = torch.tensor(0, device=self.device, dtype=torch.long).reshape(1, 1)
-
-        object_indices = mw_utils.get_object_indices(self.config.env_name)
-        object_indices = torch.tensor(object_indices).long().to(self.device)
         episode_length = 0
 
         while episode_length < (self.env.max_path_length or np.inf):
@@ -117,7 +119,7 @@ class Trainer(object):
                 states=(states.to(dtype=torch.float32) - state_mean) / state_std,
                 actions=actions.to(dtype=torch.float32),
                 returns_to_go=target_return,
-                obj_ids=object_indices.long().reshape(1, object_indices.shape[0]),
+                obj_ids=self.obj_ids,
                 timesteps=timesteps.to(dtype=torch.long),
                 use_means=use_means,
                 use_rtg_mask=use_rtg_mask,
@@ -174,13 +176,16 @@ class Trainer(object):
         else:
             self.config.num_online_rollouts = 1
 
+        self.obj_ids = mw_utils.get_object_indices(self.config.env_name)
+        self.obj_ids = torch.tensor(self.obj_ids).long().to(self.device).unsqueeze(0)
+
     def warmup_data_collection(self):
         print("collecting warmup trajectories to fill replay buffer...")
         start = time.time()
         for _ in tqdm(range(self.config.num_warmup_rollouts)):
             with torch.no_grad():
                 # don't attend to Returns for warmup because we are using pretrained model
-                path = self.rollout(use_means=True, attend_to_rtg=False)
+                path = self.rollout(use_means=True, attend_to_rtg=False, phase="train")
             new_trajectory = self.create_traj_from_path(path)
             self.dataset.trajectories.append(new_trajectory)
         print(f"took {time.time() - start} seconds for warmup collection")
@@ -303,7 +308,7 @@ class Trainer(object):
         eval_rollouts = []
         for _ in range(self.config.num_eval_rollouts):
             with torch.no_grad():
-                path = self.rollout(use_means=True, attend_to_rtg=True)
+                path = self.rollout(use_means=True, attend_to_rtg=True, phase="eval")
                 eval_rollouts.append(path)
 
         # compute metrics and log
@@ -366,6 +371,7 @@ class Trainer(object):
 
             _, action_preds, _, action_log_probs, entropies = self.model.forward(
                 **batch,
+                obj_ids=self.obj_ids,
                 target_actions=action_target,
                 use_means=False,  # sample during training
             )
@@ -453,7 +459,9 @@ class Trainer(object):
                 # collect new rollout using stochastic policy
                 if self.config.online_training:
                     with torch.no_grad():
-                        path = self.rollout(use_means=False, attend_to_rtg=True)
+                        path = self.rollout(
+                            use_means=False, attend_to_rtg=True, phase="train"
+                        )
 
                     # remove the oldest trajectory
                     self.dataset.trajectories = self.dataset.trajectories[1:]

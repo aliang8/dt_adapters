@@ -24,7 +24,13 @@ def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
-KEYS_TO_USE = ["seed", "data.context_len", "model.n_layer", "model.n_head", "data_file"]
+KEYS_TO_USE = [
+    "seed",
+    "data.context_len",
+    "model.n_layer",
+    "model.n_head",
+    "data.data_file",
+]
 
 
 def create_exp_prefix(config):
