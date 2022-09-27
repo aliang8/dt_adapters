@@ -9,16 +9,18 @@ from mw_utils import get_object_indices
 
 
 class MWDemoDataset(Dataset):
-    def __init__(self, cfg):
-        self.cfg = cfg
-        self.state_dim = cfg.state_dim
-        self.act_dim = cfg.act_dim
-        self.context_len = cfg.context_len
-        self.max_ep_len = cfg.max_ep_len
+    def __init__(self, config):
+        self.config = config
+        self.state_dim = config.state_dim
+        self.act_dim = config.act_dim
+        self.context_len = config.context_len
+        self.max_ep_len = config.max_ep_len
+
         self.trajectories = []
         all_states = []
+
         # load trajectories into memory
-        data_file = os.path.join(cfg.data_dir, cfg.data_file)
+        data_file = os.path.join(config.data_dir, config.data_file)
         with h5py.File(data_file, "r") as f:
             envs = list(f.keys())
 
@@ -32,7 +34,7 @@ class MWDemoDataset(Dataset):
                     self.trajectories.append(
                         {
                             "states": demo["obs"][()],
-                            "object_indices": get_object_indices(env),
+                            "obj_ids": get_object_indices(env),
                             "actions": demo["action"][()],
                             "rewards": demo["reward"][()],
                             "dones": demo["done"][()],
@@ -104,7 +106,7 @@ class MWDemoDataset(Dataset):
             "dones": done,
             "rewards": reward,
             "attention_mask": mask,
-            "object_indices": np.array(traj["object_indices"]),
+            "obj_ids": np.array(traj["obj_ids"]),
             "online": traj["online"],
         }
 
