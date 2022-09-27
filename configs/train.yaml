@@ -16,8 +16,10 @@ lr: 1e-4
 weight_decay: 1e-4
 alpha_lr: 1e-4
 alpha_weight_decay: 1e-4
+warmup_steps: 10000
 
 online_training: False 
+train_on_offline_data: True
 model_ckpt_dir: ""
 use_adapters: False
 num_online_rollouts: 1

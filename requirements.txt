@@ -14,3 +14,5 @@ moviepy
 imageio
 wandb
 hydra-core
+adapter-transformers
+garage

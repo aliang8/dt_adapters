@@ -173,11 +173,14 @@ class Trainer(object):
 
             if not self.config.train_on_offline_data:  # clear out dataset buffer
                 self.dataset.trajectories = []
+
+            self.obj_ids = mw_utils.get_object_indices(self.config.env_name)
+            self.obj_ids = (
+                torch.tensor(self.obj_ids).long().to(self.device).unsqueeze(0)
+            )
+
         else:
             self.config.num_online_rollouts = 1
-
-        self.obj_ids = mw_utils.get_object_indices(self.config.env_name)
-        self.obj_ids = torch.tensor(self.obj_ids).long().to(self.device).unsqueeze(0)
 
     def warmup_data_collection(self):
         print("collecting warmup trajectories to fill replay buffer...")
