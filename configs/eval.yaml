@@ -1,22 +1,86 @@
-data_dir: /home/anthony/dt_adapters/data/
-data_file: trajectories_block_only_no_images_50.hdf5
-seed: 0
-output_dir: /home/anthony/dt_adapters/outputs/
-model_ckpt_dir: /home/anthony/dt_adapters/outputs/train_dt_offline_dataset_size_stochastic_2/seed=0,data.context_len=50,model.n_layer=4,model.n_head=4,data_file=trajectories_block_only_no_images_10.hdf5,-236768
-exp_name: train_dt_offline_model_size
-log_to_wandb: true
-
+# extra eval config
 num_processes: 0
 filter_envs_by_obj: block
-num_rollout_per_env: 5
 
-device: cuda
-target_return: 10
+# training config
+seed: 1
+save_every: 10
+eval_every: 1
+num_steps_per_epoch: 50
+skip_first_eval: True
+num_epochs: 100
+batch_size: 64
+
+lr: 1e-4
+weight_decay: 1e-4
+alpha_lr: 1e-4
+alpha_weight_decay: 1e-4
+warmup_steps: 10000
+
+# logging
+output_dir: /home/anthony/dt_adapters/outputs
+exp_name: zero_shot_eval_2
+log_to_wandb: False
+
+# video configs
+log_eval_videos: True
+fps: 20
+image_height: 128
+image_width: 128
+
+# online_finetuning
+online_training: True
+# model_ckpt_dir: /home/anthony/dt_adapters/outputs/train_dt_offline_dataset_size/seed=0,data.context_len=50,model.n_layer=4,model.n_head=4,data_file=trajectories_block_only_no_images_10.hdf5,-107777
+# model_ckpt_dir: /home/anthony/dt_adapters/outputs/train_dt_offline_dataset_size_stochastic_2/seed=0,data.context_len=50,model.n_layer=4,model.n_head=4,data_file=trajectories_block_only_no_images_10.hdf5,-236768
+model_ckpt_dir: /home/anthony/dt_adapters/outputs/train_dt_offline_dataset_size_stochastic_2/seed=0,data.context_len=50,model.n_layer=4,model.n_head=4,data_file=trajectories_block_only_no_images_50.hdf5,-322277
+load_from_ckpt: True
+env_name: pick-place-wall-v2
+num_online_rollouts: 5
+num_eval_rollouts: 5
+train_on_offline_data: False
+num_warmup_rollouts: 10
+target_return: 4000
+scale: 1000
+
+# data 
+num_data_workers: 1
 
 data: 
   context_len: 50
   state_dim: 39
   act_dim: 4
   max_ep_len: 500
-  data_dir: ${data_dir}
-  data_file: ${data_file}
+  data_dir: /home/anthony/dt_adapters/data/
+  data_file: trajectories_block_only_no_images_10.hdf5
+
+# adapter configs
+use_adapters: False
+adapter_task_name: ${env_name} # this should be the task name
+adapter:
+  config: pfeiffer+inv
+  nonlinearity: none 
+  reduction_factor: none
+
+model:
+  hidden_size: 768
+  n_layer: 4
+  n_head: 4
+  dropout: 0.1
+  max_length: ${data.context_len}
+  act_dim: 4
+  pos_hand: 3
+  obs_obj_max_len: 14
+  gripper_distance_apart: 1
+  goal_pos: 3
+  state_dim: 39
+  component_hidden_size: 256
+  action_tanh: True
+
+  stochastic: True 
+  log_std_min: -20
+  log_std_max: 2
+  remove_pos_embs: False
+  stochastic_tanh: True
+  approximate_entropy_samples: 1000
+  use_entropy: True
+  target_entropy: False

@@ -48,7 +48,7 @@ class Trainer(object):
         self.dataset = MWDemoDataset(self.config.data)
         self.setup_dataloader()
         self.setup_optimizer()
-        self.setup_env()
+        self.setup_env(self.config.env_name)
         self.total_training_iters = 0
 
         def loss_fn(**kwargs):
@@ -164,10 +164,10 @@ class Trainer(object):
             dones=np.array([es.terminal for es in env_steps]),
         )
 
-    def setup_env(self):
+    def setup_env(self, env_name):
         # create env for online training
         if self.config.online_training:
-            env = mw_utils.initialize_env(self.config.env_name)
+            env = mw_utils.initialize_env(env_name)
             max_path_length = env.max_path_length
             self.env = GymEnv(env, max_episode_length=max_path_length)
 
@@ -218,7 +218,7 @@ class Trainer(object):
         model = DecisionTransformerSeparateState(**self.config.model)
         print("base model params: ", general_utils.count_parameters(model))
 
-        if self.config.online_training and self.config.model_ckpt_dir:
+        if self.config.model_ckpt_dir and self.config.load_from_ckpt:
             # loading from previous checkpoint
             ckpt_file = sorted(glob.glob(f"{self.config.model_ckpt_dir}/models/*"))[-1]
             print(f"loading pretrained model from {ckpt_file}")
@@ -246,7 +246,6 @@ class Trainer(object):
 
             # set the adapters to be used in every forward pass
             model.transformer.set_active_adapters(task_name)
-
             print("model params using adapter: ", general_utils.count_parameters(model))
 
         self.model = model.to(self.device)
@@ -281,19 +280,23 @@ class Trainer(object):
         )
 
         # auto-tune entropy term
-        if self.config.model.target_entropy:
+        if self.config.model.use_entropy and self.config.model.target_entropy:
             target_entropy = -self.model.act_dim
+
             self.log_entropy_multiplier = torch.zeros(
                 1, requires_grad=True, device=self.device
             )
+
             self.alpha_optimizer = torch.optim.AdamW(
                 [self.log_entropy_multiplier],
                 lr=self.config.alpha_lr,
                 weight_decay=self.config.alpha_weight_decay,
             )
+
             self.entropy_loss_fn = lambda entropies: torch.exp(
                 self.log_entropy_multiplier
             ) * (torch.mean(entropies.detach()) - target_entropy)
+
             self.alpha_scheduler = torch.optim.lr_scheduler.LambdaLR(
                 self.alpha_optimizer,
                 lambda steps: min((steps + 1) / self.config.warmup_steps, 1),
@@ -303,6 +306,20 @@ class Trainer(object):
             self.alpha_optimizer = None
             self.alpha_scheduler = None
             self.entropy_loss_fn = None
+
+    def save_videos(self, videos):
+        video_array = mw_utils.create_video_grid(
+            videos,
+            height=self.config.image_height,
+            width=self.config.image_width,
+        )
+        wandb.log(
+            {
+                f"eval/{self.config.env_name}/rollout_videos": wandb.Video(
+                    video_array, fps=self.config.fps, format="gif"
+                )
+            }
+        )
 
     def eval(self, epoch):
         eval_rollouts = []
@@ -321,18 +338,7 @@ class Trainer(object):
 
             if self.config.log_eval_videos:
                 videos = [traj["env_infos"]["frames"] for traj in eval_rollouts]
-                video_array = mw_utils.create_video_grid(
-                    videos,
-                    height=self.config.image_height,
-                    width=self.config.image_width,
-                )
-                wandb.log(
-                    {
-                        f"eval/{self.config.env_name}/rollout_videos": wandb.Video(
-                            video_array, fps=self.config.fps, format="gif"
-                        )
-                    }
-                )
+                self.save_videos(videos)
 
         print("=" * 50)
         print(f"epoch {epoch} eval out of {self.config.num_eval_rollouts} episodes")
@@ -340,20 +346,29 @@ class Trainer(object):
         print("=" * 50)
 
     def save_model(self, epoch):
-        path = os.path.join(self.ckpt_dir, f"epoch_{epoch:03d}.pt")
-        print(f"saving model to {path}")
-        save_dict = self.model.state_dict()
-        save_dict["epoch"] = epoch
-        save_dict["config"] = self.config
-        torch.save(save_dict, path)
+        if self.config.online_finetuning and self.config.use_adapters:
+            # save just the adapter weights
+            self.model.save_adapter(
+                self.ckpt_dir,
+                self.config.env_name,
+                meta_dict={"epoch": epoch, "config": self.config},
+            )
+        else:
+            path = os.path.join(self.ckpt_dir, f"epoch_{epoch:03d}.pt")
+            print(f"saving model to {path}")
+            save_dict = self.model.state_dict()
+            save_dict["epoch"] = epoch
+            save_dict["config"] = self.config
+            torch.save(save_dict, path)
 
     def create_traj_from_path(self, path):
         trajectory = {
             "states": path["observations"],
-            "object_indices": mw_utils.get_object_indices(self.config.env_name),
+            "obj_ids": mw_utils.get_object_indices(self.config.env_name),
             "actions": path["actions"],
             "rewards": path["rewards"],
             "dones": path["dones"],
+            "returns": general_utils.discount_cumsum(path["rewards"][()], gamma=1.0),
             "timesteps": np.arange(len(path["observations"])),
             "attention_mask": np.ones(len(path["observations"])),
             "online": 1,
@@ -371,7 +386,6 @@ class Trainer(object):
 
             _, action_preds, _, action_log_probs, entropies = self.model.forward(
                 **batch,
-                obj_ids=self.obj_ids,
                 target_actions=action_target,
                 use_means=False,  # sample during training
             )
@@ -396,6 +410,18 @@ class Trainer(object):
             # update model
             self.optimizer.zero_grad()
             loss.backward()
+
+            model_params = [
+                p
+                for p in self.model.parameters()
+                if p.requires_grad and p.grad is not None
+            ]
+            # compute norms
+            max_norm = max([p.grad.detach().abs().max() for p in model_params])
+            total_norm = torch.norm(
+                torch.stack([torch.norm(p.grad.detach(), 2) for p in model_params]),
+                2.0,
+            ).item()
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), 0.25)
             self.optimizer.step()
 
@@ -403,6 +429,8 @@ class Trainer(object):
                 "train/action_loss": loss.item(),
                 "train/entropy": entropies.mean().item(),
                 "train/action_log_prob": action_log_probs.mean().item(),
+                "train/max_norm": max_norm,
+                "train/total_norm": total_norm,
             }
 
             # update alpha
@@ -420,11 +448,11 @@ class Trainer(object):
             # update learning rates
             if self.scheduler is not None:
                 self.scheduler.step()
-                log_dict["lr"] = self.scheduler.get_last_lr()
+                log_dict["train/lr"] = self.scheduler.get_last_lr()[0]
 
             if self.alpha_scheduler is not None:
                 self.alpha_scheduler.step()
-                log_dict["alpha_lr"] = self.alpha_scheduler.get_last_lr()
+                log_dict["train/alpha_lr"] = self.alpha_scheduler.get_last_lr()[0]
 
             if self.config.log_to_wandb:
                 wandb.log(log_dict)
@@ -462,9 +490,17 @@ class Trainer(object):
                         path = self.rollout(
                             use_means=False, attend_to_rtg=True, phase="train"
                         )
+                    # import ipdb
 
-                    # remove the oldest trajectory
-                    self.dataset.trajectories = self.dataset.trajectories[1:]
+                    # ipdb.set_trace()
+
+                    # remove the trajectory with lowest reward
+                    # self.dataset.trajectories = self.dataset.trajectories[1:]
+                    traj_returns = np.array(
+                        [traj["rewards"].sum() for traj in self.dataset.trajectories]
+                    )
+                    ind_to_remove = np.argmin(traj_returns)
+                    del self.dataset.trajectories[ind_to_remove]
 
                     # create a new trajectory
                     new_trajectory = self.create_traj_from_path(path)
@@ -472,8 +508,6 @@ class Trainer(object):
 
                     # refresh dataloader
                     self.setup_dataloader()
-
-                    # batch = next(iter(data_loader))
 
                 for _ in range(self.config.num_steps_per_epoch):
                     self.train_single_iteration()
