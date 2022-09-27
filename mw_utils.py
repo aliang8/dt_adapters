@@ -1,7 +1,8 @@
 import numpy as np
 from PIL import Image
-from utils import split
+from general_utils import split
 from metaworld.policies import *
+from mw_constants import *
 from metaworld.envs.mujoco.env_dict import ALL_V2_ENVIRONMENTS
 
 ENVS_AND_SCRIPTED_POLICIES = [
@@ -65,6 +66,17 @@ def initialize_env(env_name):
     e._freeze_rand_vec = False
     e._set_task_called = True
     return e
+
+
+def get_object_indices(env):
+    # get object indices
+    objects_in_env = ENV_TO_OBJECTS[
+        env.replace("-goal-observable", "").replace("-", "_")
+    ]
+    object_indices = [0, 0]
+    for i, obj in enumerate(objects_in_env):
+        object_indices[i] = OBJECTS.index(obj)
+    return np.array(object_indices)
 
 
 def create_video_grid(videos, height=64, width=64, max_columns=5):

@@ -51,26 +51,27 @@ experiment_grids = [
     {
         "data.context_len": [30, 50, 100],
         "log_to_wandb": ["true"],
-        "exp_name": ["train_dt_offline_varying_context_len"],
+        "exp_name": ["train_dt_offline_varying_context_len_stochastic_2"],
     },
     {
         "data_file": [
             "trajectories_block_only_no_images_10.hdf5",
             "trajectories_block_only_no_images_50.hdf5",
+            "trajectories_block_only_no_images_100.hdf5",
         ],
         "log_to_wandb": ["true"],
-        "exp_name": ["train_dt_offline_dataset_size"],
+        "exp_name": ["train_dt_offline_dataset_size_stochastic_2"],
     },
     {
         "data_file": [
-            "trajectories_block_only_no_images_10.hdf5",
+            # "trajectories_block_only_no_images_100.hdf5",
             "trajectories_block_only_no_images_50.hdf5",
         ],
         "model.n_layer": [6],
         "model.n_head": [6],
         "batch_size": [32],
         "log_to_wandb": ["true"],
-        "exp_name": ["train_dt_offline_model_size"],
+        "exp_name": ["train_dt_offline_model_size_stochastic_2"],
     },
 ]
 for grid in experiment_grids:

@@ -3,70 +3,9 @@ import os
 import h5py
 import random
 import numpy as np
-from utils import discount_cumsum
-
-OBJECTS_TO_ENV = {
-    "button": [
-        "button_press_topdown_v2",
-        "button_press_topdown_wall_v2",
-        "button_press_v2",
-        "button_press_wall_v2",
-    ],
-    "basketball": ["basketball_v2"],
-    "round_nut": ["assembly_v2", "disassemble_v2"],
-    "block": [
-        "bin_picking_v2",
-        "hand_insert_v2",
-        "pick_out_of_hole_v2",
-        "pick_place_v2",
-        "pick_place_wall_v2",
-        "push_back_v2",
-        "push_v2",
-        "push_wall_v2",
-        "shelf_place_v2",
-        "sweep_into_v2",
-        "sweep_v2",
-    ],
-    "top_link": ["box_close_v2"],
-    "coffee_button_start": ["coffee_button_v2"],
-    "coffee_mug": ["coffee_pull_v2", "coffee_push_v2"],
-    "dial": ["dial_turn_v2"],
-    "door": ["door_close_v2", "door_open_v2"],  # can we merge these together?
-    "door_link": ["door_lock_v2", "door_unlock_v2", "door_v2"],
-    "drawer_link": ["drawer_close_v2", "drawer_open_v2"],
-    "faucet_handle": ["faucet_close_v2", "faucet_open_v2"],
-    "hammer": ["hammer_v2"],
-    "handle": [
-        "handle_press_side_v2",
-        "handle_press_v2",
-        "handle_pull_side_v2",
-        "handle_pull_v2",
-        "lever_pull_v2",
-    ],
-    "peg": ["peg_insert_side_v2", "peg_unplug_side_v2"],
-    "puck": [
-        "plate_slide_back_side_v2",
-        "plate_slide_back_v2",
-        "plate_slide_side_v2",
-        "plate_slide_v2",
-    ],
-    "no_obj": ["reach_v2", "reach_wall_v2"],
-    "shelf": ["shelf_place_v2"],
-    "soccer_ball": ["soccer_v2"],
-    "stick": ["stick_push_v2", "stick_pull_v2"],
-    "window_handle": ["window_close_v2", "window_open_v2"],
-}
-
-OBJECTS = list(OBJECTS_TO_ENV.keys())
-OBJECTS = ["no_obj"] + OBJECTS
-
-ENV_TO_OBJECTS = {}
-for obj, envs in OBJECTS_TO_ENV.items():
-    for env in envs:
-        if env not in ENV_TO_OBJECTS:
-            ENV_TO_OBJECTS[env] = [obj]
-        else:
-            ENV_TO_OBJECTS[env].append(obj)
+from general_utils import discount_cumsum
+from mw_constants import OBJECTS_TO_ENV
+from mw_utils import get_object_indices
 
 
 class MWDemoDataset(Dataset):
@@ -76,9 +15,9 @@ class MWDemoDataset(Dataset):
         self.act_dim = cfg.act_dim
         self.context_len = cfg.context_len
         self.max_ep_len = cfg.max_ep_len
-        self.episodes = []
+        self.trajectories = []
         all_states = []
-        # load episodes into memory
+        # load trajectories into memory
         data_file = os.path.join(cfg.data_dir, cfg.data_file)
         with h5py.File(data_file, "r") as f:
             envs = list(f.keys())
@@ -86,27 +25,21 @@ class MWDemoDataset(Dataset):
             for env in envs:
                 num_demos = len(f[env].keys())
 
-                # get object indices
-                objects_in_env = ENV_TO_OBJECTS[
-                    env.replace("-goal-observable", "").replace("-", "_")
-                ]
-                object_indices = [0, 0]
-                for i, obj in enumerate(objects_in_env):
-                    object_indices[i] = OBJECTS.index(obj)
-
                 for k, demo in f[env].items():
                     states = demo["obs"][()]
                     all_states.append(states)
 
-                    self.episodes.append(
+                    self.trajectories.append(
                         {
                             "states": demo["obs"][()],
-                            "object_indices": object_indices,
+                            "object_indices": get_object_indices(env),
                             "actions": demo["action"][()],
                             "rewards": demo["reward"][()],
                             "dones": demo["done"][()],
+                            "returns": discount_cumsum(demo["reward"][()], gamma=1.0),
                             "timesteps": np.arange(len(states)),
                             "attention_mask": np.ones(len(states)),
+                            "online": 0,
                         }
                     )
 
@@ -119,10 +52,10 @@ class MWDemoDataset(Dataset):
         )
 
     def __len__(self):
-        return len(self.episodes)
+        return len(self.trajectories)
 
     def __getitem__(self, idx):
-        traj = self.episodes[idx]
+        traj = self.trajectories[idx]
 
         si = random.randint(0, traj["rewards"].shape[0] - 1)
 
@@ -172,6 +105,7 @@ class MWDemoDataset(Dataset):
             "rewards": reward,
             "attention_mask": mask,
             "object_indices": np.array(traj["object_indices"]),
+            "online": traj["online"],
         }
 
         return out

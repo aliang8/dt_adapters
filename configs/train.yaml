@@ -1,6 +1,7 @@
 save_every: 10
 eval_every: 10
-num_steps_per_iter: 200
+num_steps_per_epoch: 50
+skip_first_eval: False
 num_epochs: 100
 batch_size: 64
 data_dir: /home/anthony/dt_adapters/data/
@@ -13,6 +14,14 @@ log_to_wandb: False
 
 lr: 1e-4
 weight_decay: 1e-4
+alpha_lr: 1e-4
+alpha_weight_decay: 1e-4
+
+online_training: False 
+model_ckpt_dir: ""
+use_adapters: False
+num_online_rollouts: 1
+
 
 data: 
   context_len: 50
@@ -41,20 +50,8 @@ model:
   log_std_min: -20
   log_std_max: 2
   remove_pos_embs: False
-  stochastic_tanh: False
+  stochastic_tanh: True
   approximate_entropy_samples: 1000
-  use_entropy: True 
-  target_entropy: True
+  use_entropy: False
+  target_entropy: False
 
-alpha_lr: 1e-4
-alpha_weight_decay: 1e-4
-
-
-# adapter configs
-use_adapters: True
-model_ckpt_dir: /home/anthony/dt_adapters/outputs/train_dt_offline_dataset_size/seed=0,data.context_len=50,model.n_layer=4,model.n_head=4,data_file=trajectories_block_only_no_images_10.hdf5,-107777
-adapter_task_name: bin-picking-v2 # this should be the task name
-adapter:
-  config: pfeiffer+inv
-  nonlinearity: none 
-  reduction_factor: none

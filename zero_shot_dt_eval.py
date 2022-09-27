@@ -5,20 +5,25 @@ import torch
 import hydra
 import numpy as np
 import time
-from utils import split
+from general_utils import split
 import collections
 from collections import defaultdict as dd
 
-from mw_utils import ENVS_AND_SCRIPTED_POLICIES, initialize_env, create_video_grid
+from mw_utils import (
+    ENVS_AND_SCRIPTED_POLICIES,
+    get_object_indices,
+    initialize_env,
+    create_video_grid,
+)
 from garage.envs import GymEnv
 from garage.np import discount_cumsum, stack_tensor_dict_list
 from models.decision_transformer import DecisionTransformerSeparateState
 import multiprocessing as mp
-from mw_dataset import OBJECTS_TO_ENV, ENV_TO_OBJECTS, OBJECTS
+from mw_constants import OBJECTS_TO_ENV, ENV_TO_OBJECTS, OBJECTS
 from metaworld.envs.mujoco.env_dict import ALL_V2_ENVIRONMENTS
 from PIL import Image
 from mw_dataset import MWDemoDataset
-from utils import create_exp_prefix, KEYS_TO_USE
+from general_utils import create_exp_prefix, KEYS_TO_USE
 
 
 def rollout(
@@ -27,10 +32,12 @@ def rollout(
     agent,
     state_mean,
     state_std,
+    scale=1000,
     max_episode_length=np.inf,
     animated=False,
     device="cpu",
     target_return=None,
+    attend_to_rtg=False,
     pause_per_frame=None,
     deterministic=False,
 ):
@@ -56,19 +63,16 @@ def rollout(
     )
     actions = torch.zeros((0, act_dim), device=device, dtype=torch.float32)
     rewards = torch.zeros(0, device=device, dtype=torch.float32)
+    use_rtgs_mask = torch.tensor([attend_to_rtg]).reshape(1, 1).to(device)
+
     target_return = torch.tensor(
         target_return, device=device, dtype=torch.float32
     ).reshape(1, 1)
+
     timesteps = torch.tensor(0, device=device, dtype=torch.long).reshape(1, 1)
 
-    objects_in_env = ENV_TO_OBJECTS[
-        env_name.replace("-goal-observable", "").replace("-", "_")
-    ]
-    object_indices = [0, 0]
-    for i, obj in enumerate(objects_in_env):
-        object_indices[i] = OBJECTS.index(obj)
+    object_indices = get_object_indices(env_name)
     object_indices = torch.tensor(object_indices).long().to(device)
-
     episode_length = 0
 
     while episode_length < (max_episode_length or np.inf):
@@ -85,6 +89,8 @@ def rollout(
             returns_to_go=target_return,
             obj_ids=object_indices.long().reshape(1, object_indices.shape[0]),
             timesteps=timesteps.to(dtype=torch.long),
+            use_means=deterministic,
+            use_rtgs_mask=use_rtgs_mask,
         )
         actions[-1] = action
         action = action.detach().cpu().numpy()
@@ -106,8 +112,7 @@ def rollout(
         timesteps = torch.cat(
             [
                 timesteps,
-                torch.ones((1, 1), device=device, dtype=torch.long)
-                * (episode_length + 1),
+                torch.ones((1, 1), device=device, dtype=torch.long) * episode_length,
             ],
             dim=1,
         )
@@ -115,7 +120,7 @@ def rollout(
         states = torch.cat([states, cur_state], dim=0)
 
         # pred_return = target_return[0, -1] - (reward / scale)
-        pred_return = target_return[0, -1] - es.reward
+        pred_return = target_return[0, -1] - (es.reward / scale)
         target_return = torch.cat([target_return, pred_return.reshape(1, 1)], dim=1)
         rewards[-1] = es.reward
 
@@ -160,13 +165,18 @@ def zero_shot_eval(cfg, runs, results_queue, wandb_run, state_mean, state_std):
                 policy,
                 state_mean,
                 state_std,
-                max_episode_length=np.inf,
+                max_episode_length=env.max_path_length,
                 animated=True,
                 target_return=cfg.target_return,
+                attend_to_rtg=False,
                 pause_per_frame=None,
                 device=cfg.device,
-                deterministic=False,
+                deterministic=True,
             )
+            print(path["actions"].shape)
+            # import ipdb
+
+            # ipdb.set_trace()
 
             if results_queue is not None:
                 results_queue.put((env_name, path))
@@ -289,7 +299,7 @@ def main(config):
         results_queue.put(None)
         proc.join()
     else:
-        zero_shot_eval(config, [runs[0]], None, None, state_mean, state_std)
+        zero_shot_eval(config, runs, None, None, state_mean, state_std)
 
 
 if __name__ == "__main__":
