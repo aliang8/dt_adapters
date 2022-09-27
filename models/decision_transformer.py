@@ -21,7 +21,7 @@ from collections import OrderedDict
 # from robomimic.models.obs_nets import ObservationGroupEncoder
 
 # from robomimic.config.dt_config_mw import OBJECTS
-from mw_dataset import OBJECTS
+from mw_constants import OBJECTS
 
 from torch.distributions import Normal, Independent
 from torch.distributions.transformed_distribution import TransformedDistribution
@@ -46,6 +46,7 @@ class DecisionTransformerSeparateState(TrajectoryModel):
         max_length=None,
         max_ep_len=4096,
         action_tanh=True,
+        approximate_entropy_samples=None,
         **kwargs
     ):
         super().__init__(state_dim, act_dim, max_length=max_length)
@@ -112,6 +113,7 @@ class DecisionTransformerSeparateState(TrajectoryModel):
         self.log_std_max = log_std_max
         self.stochastic_tanh = stochastic_tanh
         self.remove_pos_embs = remove_pos_embs
+        self.approximate_entropy_samples = approximate_entropy_samples
 
     def forward(
         self,
@@ -123,11 +125,10 @@ class DecisionTransformerSeparateState(TrajectoryModel):
         target_actions=None,
         attention_mask=None,
         use_means=False,
+        use_rtg_mask=None,
     ):
         batch_size, seq_length = states.shape[0], states.shape[1]
-        # import ipdb
 
-        # ipdb.set_trace()
         if attention_mask is None:
             # attention mask for GPT: 1 if can be attended to, 0 if not
             attention_mask = torch.ones((batch_size, seq_length), dtype=torch.long).to(
@@ -204,8 +205,11 @@ class DecisionTransformerSeparateState(TrajectoryModel):
 
         # to make the attention mask fit the stacked inputs, have to stack it as well
         # don't attend to the return tokens during pretraining
+        return_attn_mask = torch.clone(attention_mask)
+        return_attn_mask *= use_rtg_mask.int()
+
         stacked_attention_mask = (
-            torch.stack((attention_mask * 0, attention_mask, attention_mask), dim=1)
+            torch.stack((return_attn_mask, attention_mask, attention_mask), dim=1)
             .permute(0, 2, 1)
             .reshape(batch_size, 3 * seq_length)
         )
@@ -224,7 +228,6 @@ class DecisionTransformerSeparateState(TrajectoryModel):
         action_reps = x[:, 2]
 
         # get predictions
-
         # predict next return given state and action
         return_preds = self.predict_return(action_reps)
 
@@ -232,7 +235,9 @@ class DecisionTransformerSeparateState(TrajectoryModel):
         state_preds = self.predict_state(action_reps)
 
         # predict next action given state
-        action_dist = None
+        action_log_probs = None
+        entropies = None
+
         if self.stochastic:
             means = self.predict_action_mean(state_reps)
             log_stds = self.predict_action_logstd(state_reps)
@@ -280,7 +285,17 @@ class DecisionTransformerSeparateState(TrajectoryModel):
     def reset(self):
         pass
 
-    def get_action(self, states, actions, returns_to_go, obj_ids, timesteps, **kwargs):
+    def get_action(
+        self,
+        states,
+        actions,
+        returns_to_go,
+        obj_ids,
+        timesteps,
+        use_means,
+        use_rtg_mask,
+        **kwargs
+    ):
         # we don't care about the past rewards in this model
         states = states.reshape(1, -1, self.state_dim)
         actions = actions.reshape(1, -1, self.act_dim)
@@ -366,7 +381,8 @@ class DecisionTransformerSeparateState(TrajectoryModel):
             timesteps,
             target_actions=None,
             attention_mask=attention_mask,
-            use_means=True,  # use mean action during evaluation
+            use_means=use_means,  # use mean action during evaluation
+            use_rtg_mask=use_rtg_mask,
             **kwargs,
         )
 

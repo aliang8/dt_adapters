@@ -1,6 +1,12 @@
 import numpy as np
 
 
+def to_device(batch, device):
+    for k, v in batch.items():
+        batch[k] = batch[k].to(device)
+    return batch
+
+
 def discount_cumsum(x, gamma):
     discount_cumsum = np.zeros_like(x)
     discount_cumsum[-1] = x[-1]

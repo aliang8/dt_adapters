@@ -49,13 +49,28 @@ CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 collect_scripted_policy_demos.py
 ## Pretraining DT model 
 ```
 # Training
-CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py batch_size=32 data_file=trajectories_block_only_no_images_50.hdf5 exp_name=test log_to_wandb=false
+CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py \
+    batch_size=32 \
+    data_file=trajectories_block_only_no_images_10.hdf5 \
+    exp_name=test \
+    log_to_wandb=false
 
 # Zero-shot inference
-CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 zero_shot_dt_eval.py num_processes=4 log_to_wandb=true
+CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 zero_shot_dt_eval.py num_processes=0 log_to_wandb=false
 ```
 
+## Finetuning on adapters
+```
+# Online training 
+CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py \
+    --config-name=online_finetune \
+    model_ckpt_dir=/model/checkpoint/dir \
+    online_training=True \
+    env_name=pick-place-wall-v2
+```
 
-
-# TODO
-[ ] Collect demonstrations for metaworld environments
+CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py \
+    --config-name=online_finetune \
+    online_training=True \
+    env_name=pick-place-wall-v2 \
+    exp_name=online_training_test

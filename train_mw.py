@@ -1,264 +1,481 @@
 import argparse
 import json
-import pdb
 import numpy as np
 import time
 import os
-import shutil
-import psutil
 import sys
-import socket
-import traceback
 import wandb
 import random
 import torch
 import glob
-from omegaconf import OmegaConf
-from torch.utils.data import DataLoader
+import h5py
+import hydra
+from pprint import pprint
+from tqdm import tqdm
 from collections import OrderedDict
 
-import h5py
-from tqdm import tqdm
-import argparse
-from models.decision_transformer import DecisionTransformerSeparateState
-from torch.utils.data import Dataset, Sampler
+from torch.utils.data import DataLoader
+from torch.utils.data import Dataset, Sampler, RandomSampler
+
+
 from mw_dataset import MWDemoDataset
-import hydra
-from utils import create_exp_prefix, KEYS_TO_USE, count_parameters
+from omegaconf import OmegaConf
+from models.decision_transformer import DecisionTransformerSeparateState
+from sampler import ImportanceWeightBatchSampler
+
 from transformers.adapters.configuration import AdapterConfig
 
+import general_utils
+import mw_utils
+import eval_utils
+from garage.envs import GymEnv
+from garage.np import discount_cumsum, stack_tensor_dict_list
 
-def chunk(indices, chunk_size):
-    return torch.split(torch.tensor(indices), chunk_size)
 
+class Trainer(object):
+    def __init__(self, config):
+        # first set seeds
+        np.random.seed(config.seed)
+        torch.manual_seed(config.seed)
 
-def train_single_iteration(
-    config,
-    model,
-    data_loader,
-    loss_fn,
-    optimizer,
-    entropy_loss_fn=None,
-    alpha_optimizer=None,
-    log_entropy_multiplier=None,
-    scheduler=None,
-    device="cpu",
-):
-    # iterate over demos
-    for batch in data_loader:
+        self.config = config
+        self.setup_logging()
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        full_states, actions, returns_to_go, timesteps, attention_mask = (
-            batch["states"].to(device).float(),
-            batch["actions"].to(device).float(),
-            batch["returns_to_go"].to(device).float(),
-            batch["timesteps"].to(device).long(),
-            batch["attention_mask"].to(device).long(),
+        self.setup_model()
+
+        # setup dataset
+        self.dataset = MWDemoDataset(self.config.data)
+        self.setup_dataloader()
+        self.setup_optimizer()
+        self.setup_env()
+        self.total_training_iters = 0
+
+        def loss_fn(**kwargs):
+            loss = None
+            if config.model.stochastic:
+                if config.model.use_entropy:
+                    if config.model.target_entropy:
+                        loss = -torch.mean(kwargs["a_log_probs"]) - torch.exp(
+                            kwargs["log_entropy_multiplier"].detach()
+                        ) * torch.mean(kwargs["entropies"])
+                    else:
+                        loss = -torch.mean(kwargs["a_log_probs"]) - torch.mean(
+                            kwargs["entropies"]
+                        )
+                else:
+                    loss = -torch.mean(kwargs["a_log_probs"])
+            else:
+                loss = torch.nn.MSELoss(kwargs["action_preds"], kwargs["action_target"])
+            return loss
+
+    def rollout(self, use_means=False, attend_to_rtg=False):
+        """Sample a single episode of the agent in the environment."""
+        env_steps = []
+        agent_infos = []
+        observations = []
+        last_obs, episode_infos = self.env.reset()
+        self.model.reset()
+
+        state_dim = self.model.state_dim
+        act_dim = self.model.act_dim
+
+        if self.config.log_eval_videos:
+            # TODO: set to false
+            self.env.visualize()
+
+        state_mean = torch.from_numpy(self.dataset.state_mean).to(device=self.device)
+        state_std = torch.from_numpy(self.dataset.state_std).to(device=self.device)
+
+        states = (
+            torch.from_numpy(last_obs)
+            .reshape(1, state_dim)
+            .to(device=self.device, dtype=torch.float32)
+        )
+        actions = torch.zeros((0, act_dim), device=self.device, dtype=torch.float32)
+        rewards = torch.zeros(0, device=self.device, dtype=torch.float32)
+        use_rtg_mask = torch.tensor([attend_to_rtg]).reshape(1, 1).to(self.device)
+
+        target_return = torch.tensor(
+            self.config.target_return, device=self.device, dtype=torch.float32
+        ).reshape(1, 1)
+
+        timesteps = torch.tensor(0, device=self.device, dtype=torch.long).reshape(1, 1)
+
+        object_indices = mw_utils.get_object_indices(self.config.env_name)
+        object_indices = torch.tensor(object_indices).long().to(self.device)
+        episode_length = 0
+
+        while episode_length < (self.env.max_path_length or np.inf):
+            # add padding
+            actions = torch.cat(
+                [actions, torch.zeros((1, act_dim), device=self.device)], dim=0
+            )
+            rewards = torch.cat([rewards, torch.zeros(1, device=self.device)])
+
+            action, agent_info = self.model.get_action(
+                states=(states.to(dtype=torch.float32) - state_mean) / state_std,
+                actions=actions.to(dtype=torch.float32),
+                returns_to_go=target_return,
+                obj_ids=object_indices.long().reshape(1, object_indices.shape[0]),
+                timesteps=timesteps.to(dtype=torch.long),
+                use_means=use_means,
+                use_rtg_mask=use_rtg_mask,
+            )
+            actions[-1] = action
+            action = action.detach().cpu().numpy()
+
+            es = self.env.step(action)
+
+            env_steps.append(es)
+            observations.append(last_obs)
+            agent_infos.append(agent_info)
+
+            episode_length += 1
+            if es.last:
+                break
+            last_obs = es.observation
+
+            timesteps = torch.cat(
+                [
+                    timesteps,
+                    torch.ones((1, 1), device=self.device, dtype=torch.long)
+                    * episode_length,
+                ],
+                dim=1,
+            )
+            cur_state = (
+                torch.from_numpy(last_obs).to(device=self.device).reshape(1, state_dim)
+            )
+            states = torch.cat([states, cur_state], dim=0)
+            pred_return = target_return[0, -1] - (es.reward / self.config.scale)
+            target_return = torch.cat([target_return, pred_return.reshape(1, 1)], dim=1)
+            rewards[-1] = es.reward
+
+        return dict(
+            episode_infos=episode_infos,
+            observations=np.array(observations),
+            actions=np.array([es.action for es in env_steps]),
+            rewards=np.array([es.reward for es in env_steps]),
+            agent_infos=stack_tensor_dict_list(agent_infos),
+            env_infos=stack_tensor_dict_list([es.env_info for es in env_steps]),
+            dones=np.array([es.terminal for es in env_steps]),
         )
 
-        obj_ids = batch["object_indices"].to(device).long()
+    def setup_env(self):
+        # create env for online training
+        if self.config.online_training:
+            env = mw_utils.initialize_env(self.config.env_name)
+            max_path_length = env.max_path_length
+            self.env = GymEnv(env, max_episode_length=max_path_length)
 
-        action_target = torch.clone(actions)
+            if not self.config.train_on_offline_data:  # clear out dataset buffer
+                self.dataset.trajectories = []
+        else:
+            self.config.num_online_rollouts = 1
 
-        _, action_preds, _, action_log_probs, entropies = model.forward(
-            full_states,
-            actions,
-            returns_to_go[:, :-1],
-            obj_ids,
-            # rewards,
-            # rtg[:, :-1],
-            timesteps,
-            target_actions=action_target,
-            attention_mask=attention_mask,
+    def warmup_data_collection(self):
+        print("collecting warmup trajectories to fill replay buffer...")
+        start = time.time()
+        for _ in tqdm(range(self.config.num_warmup_rollouts)):
+            with torch.no_grad():
+                # don't attend to Returns for warmup because we are using pretrained model
+                path = self.rollout(use_means=True, attend_to_rtg=False)
+            new_trajectory = self.create_traj_from_path(path)
+            self.dataset.trajectories.append(new_trajectory)
+        print(f"took {time.time() - start} seconds for warmup collection")
+
+        # info about initial dataset
+        print("initial dataset size: ", len(self.dataset))
+        metrics = eval_utils.compute_eval_metrics(self.dataset.trajectories)
+        pprint(metrics)
+
+    def setup_logging(self):
+        group_name = self.config.exp_name
+        exp_prefix = f"{general_utils.create_exp_prefix(self.config)}-{random.randint(int(1e5), int(1e6) - 1)}"
+
+        if self.config.log_to_wandb:
+            wandb.init(
+                name=exp_prefix,
+                group=group_name,
+                project="dt-adapters",
+                config=self.config,
+                entity="glamor",
+            )
+
+        self.ckpt_dir = os.path.join(
+            self.config.output_dir, self.config.exp_name, exp_prefix, "models"
+        )
+        print(f"saving outputs to: {self.ckpt_dir}")
+        os.makedirs(self.ckpt_dir, exist_ok=True)
+
+    def setup_model(self):
+        model = DecisionTransformerSeparateState(**self.config.model)
+        print("base model params: ", general_utils.count_parameters(model))
+
+        if self.config.online_training and self.config.model_ckpt_dir:
+            # loading from previous checkpoint
+            ckpt_file = sorted(glob.glob(f"{self.config.model_ckpt_dir}/models/*"))[-1]
+            print(f"loading pretrained model from {ckpt_file}")
+            state_dict = torch.load(ckpt_file)
+            model_config = state_dict["config"]
+
+            model = DecisionTransformerSeparateState(**model_config.model)
+            del state_dict["config"]
+            del state_dict["epoch"]
+            model.load_state_dict(state_dict, strict=True)
+            self.config.batch_size = model_config["batch_size"]
+
+        if self.config.use_adapters:
+            task_name = self.config.adapter_task_name
+            cfg = self.config.adapter
+            cfg = OmegaConf.to_container(cfg)
+            cfg["nonlinearity"] = None
+            cfg["reduction_factor"] = None
+
+            adapter_config = AdapterConfig.load(**cfg)
+            model.transformer.add_adapter(task_name, config=adapter_config)
+
+            # freeze all model weights except of those of this adapter
+            model.transformer.train_adapter([task_name])
+
+            # set the adapters to be used in every forward pass
+            model.transformer.set_active_adapters(task_name)
+
+            print("model params using adapter: ", general_utils.count_parameters(model))
+
+        self.model = model.to(self.device)
+        self.model.train()
+
+    def setup_dataloader(self):
+        if self.config.online_training:
+            # create batch sampler to rerank trajectories based on length during training
+            sampler = ImportanceWeightBatchSampler(
+                self.dataset, self.config.batch_size, shuffle=True
+            )
+        else:
+            sampler = RandomSampler(self.dataset)
+
+        self.data_loader = DataLoader(
+            dataset=self.dataset,
+            sampler=sampler,
+            batch_size=self.config.batch_size,
+            num_workers=self.config.num_data_workers,
+            drop_last=False,
         )
 
-        act_dim = action_preds.shape[2]
-        action_preds = action_preds.reshape(-1, act_dim)[attention_mask.reshape(-1) > 0]
-        action_target = action_target.reshape(-1, act_dim)[
-            attention_mask.reshape(-1) > 0
-        ]
+    def setup_optimizer(self):
+        self.optimizer = torch.optim.AdamW(
+            self.model.parameters(),
+            lr=self.config.lr,
+            weight_decay=self.config.weight_decay,
+        )
 
-        loss_fn_inputs = {
-            "action_preds": action_preds,
-            "action_targets": action_target,
-            "a_log_probs": action_log_probs,
-            "entropies": entropies,
-            "log_entropy_multiplier": log_entropy_multiplier,
+        self.scheduler = torch.optim.lr_scheduler.LambdaLR(
+            self.optimizer, lambda steps: min((steps + 1) / self.config.warmup_steps, 1)
+        )
+
+        # auto-tune entropy term
+        if self.config.model.target_entropy:
+            target_entropy = -self.model.act_dim
+            self.log_entropy_multiplier = torch.zeros(
+                1, requires_grad=True, device=self.device
+            )
+            self.alpha_optimizer = torch.optim.AdamW(
+                [self.log_entropy_multiplier],
+                lr=self.config.alpha_lr,
+                weight_decay=self.config.alpha_weight_decay,
+            )
+            self.entropy_loss_fn = lambda entropies: torch.exp(
+                self.log_entropy_multiplier
+            ) * (torch.mean(entropies.detach()) - target_entropy)
+            self.alpha_scheduler = torch.optim.lr_scheduler.LambdaLR(
+                self.alpha_optimizer,
+                lambda steps: min((steps + 1) / self.config.warmup_steps, 1),
+            )
+        else:
+            self.log_entropy_multiplier = None
+            self.alpha_optimizer = None
+            self.alpha_scheduler = None
+            self.entropy_loss_fn = None
+
+    def eval(self, epoch):
+        eval_rollouts = []
+        for _ in range(self.config.num_eval_rollouts):
+            with torch.no_grad():
+                path = self.rollout(use_means=True, attend_to_rtg=True)
+                eval_rollouts.append(path)
+
+        # compute metrics and log
+        metrics = eval_utils.compute_eval_metrics(eval_rollouts)
+        metrics["epoch"] = epoch
+        metrics["total_training_iters"] = self.total_training_iters
+
+        if self.config.log_to_wandb:
+            wandb.log({f"eval/{k}": v for k, v in metrics.items()})
+
+            if self.config.log_eval_videos:
+                videos = [traj["env_infos"]["frames"] for traj in eval_rollouts]
+                video_array = mw_utils.create_video_grid(
+                    videos,
+                    height=self.config.image_height,
+                    width=self.config.image_width,
+                )
+                wandb.log(
+                    {
+                        f"eval/{self.config.env_name}/rollout_videos": wandb.Video(
+                            video_array, fps=self.config.fps, format="gif"
+                        )
+                    }
+                )
+
+        print("=" * 50)
+        print(f"epoch {epoch} eval out of {self.config.num_eval_rollouts} episodes")
+        pprint(metrics)
+        print("=" * 50)
+
+    def save_model(self, epoch):
+        path = os.path.join(self.ckpt_dir, f"epoch_{epoch:03d}.pt")
+        print(f"saving model to {path}")
+        save_dict = self.model.state_dict()
+        save_dict["epoch"] = epoch
+        save_dict["config"] = self.config
+        torch.save(save_dict, path)
+
+    def create_traj_from_path(self, path):
+        trajectory = {
+            "states": path["observations"],
+            "object_indices": mw_utils.get_object_indices(self.config.env_name),
+            "actions": path["actions"],
+            "rewards": path["rewards"],
+            "dones": path["dones"],
+            "timesteps": np.arange(len(path["observations"])),
+            "attention_mask": np.ones(len(path["observations"])),
+            "online": 1,
         }
+        return trajectory
 
-        loss = loss_fn(**loss_fn_inputs)
+    def train_single_iteration(self):
+        # iterate over dataset
+        for batch in self.data_loader:
+            batch = general_utils.to_device(batch, self.device)
+            batch["returns_to_go"] = batch["returns_to_go"][:, :-1]
+            batch["use_rtg_mask"] = batch["online"].reshape(-1, 1)
 
-        # update model
-        optimizer.zero_grad()
-        loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), 0.25)
-        optimizer.step()
+            action_target = torch.clone(batch["actions"])
 
-        log_dict = {"train/action_loss": loss.item()}
+            _, action_preds, _, action_log_probs, entropies = self.model.forward(
+                **batch,
+                target_actions=action_target,
+                use_means=False,  # sample during training
+            )
 
-        # update alpha
-        if log_entropy_multiplier is not None:
-            entropy_multiplier_loss = entropy_loss_fn(entropies)
-            alpha_optimizer.zero_grad()
-            entropy_multiplier_loss.backward()
-            alpha_optimizer.step()
+            act_dim = action_preds.shape[2]
+            mask = batch["attention_mask"].reshape(-1) > 0
+            action_preds = action_preds.reshape(-1, act_dim)[mask]
+            action_target = action_target.reshape(-1, act_dim)[mask]
+            action_log_probs = action_log_probs.reshape(-1)[mask]
+            entropies = entropies.reshape(-1)[mask]
 
-            log_dict["train/entropy_loss"] = entropy_multiplier_loss.item()
+            loss_fn_inputs = {
+                "action_preds": action_preds,
+                "action_targets": action_target,
+                "a_log_probs": action_log_probs,
+                "entropies": entropies,
+                "log_entropy_multiplier": self.log_entropy_multiplier,
+            }
 
-        if scheduler is not None:
-            scheduler.step()
+            loss = self.loss_fn(**loss_fn_inputs)
 
-        if config.log_to_wandb:
-            wandb.log(log_dict)
+            # update model
+            self.optimizer.zero_grad()
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), 0.25)
+            self.optimizer.step()
+
+            log_dict = {
+                "train/action_loss": loss.item(),
+                "train/entropy": entropies.mean().item(),
+                "train/action_log_prob": action_log_probs.mean().item(),
+            }
+
+            # update alpha
+            if self.log_entropy_multiplier is not None:
+                entropy_multiplier_loss = self.entropy_loss_fn(entropies)
+                self.alpha_optimizer.zero_grad()
+                entropy_multiplier_loss.backward()
+                self.alpha_optimizer.step()
+
+                log_dict["train/entropy_loss"] = entropy_multiplier_loss.item()
+                log_dict[
+                    "train/log_entropy_multiplier"
+                ] = self.log_entropy_multiplier.item()
+
+            # update learning rates
+            if self.scheduler is not None:
+                self.scheduler.step()
+                log_dict["lr"] = self.scheduler.get_last_lr()
+
+            if self.alpha_scheduler is not None:
+                self.alpha_scheduler.step()
+                log_dict["alpha_lr"] = self.alpha_scheduler.get_last_lr()
+
+            if self.config.log_to_wandb:
+                wandb.log(log_dict)
+
+    def train(self):
+        if (
+            not self.config.train_on_offline_data
+            and self.config.num_warmup_rollouts > 0
+        ):
+            self.warmup_data_collection()
+
+        # train loop
+        for epoch in tqdm(range(self.config.num_epochs)):
+
+            if self.config.log_to_wandb:
+                wandb.log({"train/epoch": epoch})
+
+            # save model
+            if epoch % self.config.save_every == 0 and epoch != 0:
+                self.save_model(epoch)
+
+            # run evaluation for online_training
+            if epoch % self.config.eval_every == 0 and self.config.online_training:
+                if self.config.skip_first_eval and epoch == 0:
+                    continue
+
+                self.eval(epoch)
+
+            # iterate for a number of rollouts
+            # for each new rollout collected, we train the model for some amount of iterations
+            for _ in range(self.config.num_online_rollouts):
+                # collect new rollout using stochastic policy
+                if self.config.online_training:
+                    with torch.no_grad():
+                        path = self.rollout(use_means=False, attend_to_rtg=True)
+
+                    # remove the oldest trajectory
+                    self.dataset.trajectories = self.dataset.trajectories[1:]
+
+                    # create a new trajectory
+                    new_trajectory = self.create_traj_from_path(path)
+                    self.dataset.trajectories.append(new_trajectory)
+
+                    # refresh dataloader
+                    self.setup_dataloader()
+
+                    # batch = next(iter(data_loader))
+
+                for _ in range(self.config.num_steps_per_epoch):
+                    self.train_single_iteration()
+                    self.total_training_iters += 1
 
 
 @hydra.main(config_path="configs", config_name="train")
 def main(config):
-    print(config)
-
-    # first set seeds
-    np.random.seed(config.seed)
-    torch.manual_seed(config.seed)
-
-    # setup env - actually no env because offline learning :D
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-
-    # setup model
-    model = DecisionTransformerSeparateState(**config.model)
-
-    print("base model params: ", count_parameters(model))
-
-    if config.use_adapters:
-        # loading from previous checkpoint
-        ckpt_file = sorted(glob.glob(f"{config.model_ckpt_dir}/models/*"))[-1]
-        print(f"loading pretrained model from {ckpt_file}")
-        state_dict = torch.load(ckpt_file)
-        model_config = state_dict["config"]
-
-        model = DecisionTransformerSeparateState(**model_config.model)
-        del state_dict["config"]
-        del state_dict["epoch"]
-        model.load_state_dict(state_dict, strict=True)
-
-        task_name = config.adapter_task_name
-        cfg = config.adapter
-        cfg = OmegaConf.to_container(cfg)
-        cfg["nonlinearity"] = None
-        cfg["reduction_factor"] = None
-        adapter_config = AdapterConfig.load(**cfg)
-        model.transformer.add_adapter(task_name, config=adapter_config)
-        # Freeze all model weights except of those of this adapter
-        model.transformer.train_adapter([task_name])
-
-        # Set the adapters to be used in every forward pass
-        model.transformer.set_active_adapters(task_name)
-
-        print("model params using adapter: ", count_parameters(model))
-
-    model = model.to(device)
-    model.train()
-
-    def loss_fn(**kwargs):
-        loss = None
-        if config.model.stochastic:
-            if config.model.use_entropy:
-                if config.model.target_entropy:
-                    loss = -torch.mean(kwargs["a_log_probs"]) - torch.exp(
-                        kwargs["log_entropy_multiplier"].detach()
-                    ) * torch.mean(kwargs["entropies"])
-                else:
-                    loss = -torch.mean(kwargs["a_log_probs"]) - torch.mean(
-                        kwargs["entropies"]
-                    )
-            else:
-                loss = -torch.mean(kwargs["a_log_probs"])
-        else:
-            loss = torch.nn.MSELoss(kwargs["action_preds"], kwargs["action_target"])
-        return loss
-
-    if config.model.target_entropy:
-        target_entropy = -model.act_dim
-        log_entropy_multiplier = torch.zeros(1, requires_grad=True, device=device)
-        alpha_optimizer = torch.optim.AdamW(
-            [log_entropy_multiplier],
-            lr=config.alpha_lr,
-            weight_decay=config.alpha_weight_decay,
-        )
-        entropy_loss_fn = lambda entropies: torch.exp(log_entropy_multiplier) * (
-            torch.mean(entropies.detach()) - target_entropy
-        )
-    else:
-        log_entropy_multiplier = None
-        alpha_optimizer = None
-
-    optimizer = torch.optim.AdamW(
-        model.parameters(),
-        lr=config.lr,
-        weight_decay=config.weight_decay,
-    )
-
-    scheduler = None
-
-    # setup dataloader
-    dataset = MWDemoDataset(config.data)
-    print(len(dataset))
-    print(dataset[0].keys())
-
-    data_loader = DataLoader(
-        dataset=dataset,
-        sampler=None,
-        batch_size=config.batch_size,
-        shuffle=True,
-        num_workers=config.num_data_workers,
-        drop_last=False,
-    )
-
-    # logging stuff
-    group_name = config.exp_name
-    exp_prefix = f"{create_exp_prefix(config)}-{random.randint(int(1e5), int(1e6) - 1)}"
-
-    if config.log_to_wandb:
-        wandb.init(
-            name=exp_prefix,
-            group=group_name,
-            project="dt-adapters",
-            config=config,
-            entity="glamor",
-        )
-    ckpt_dir = os.path.join(config.output_dir, config.exp_name, exp_prefix, "models")
-    os.makedirs(ckpt_dir, exist_ok=True)
-
-    # train loop
-    for epoch in tqdm(range(config.num_epochs)):
-
-        if config.log_to_wandb:
-            wandb.log({"train/epoch": epoch})
-
-        if epoch % config.eval_every == 0:
-            # run evaluation
-            pass
-
-        # save model
-        if epoch % config.save_every == 0:
-            path = os.path.join(ckpt_dir, f"epoch_{epoch:03d}.pt")
-            print(f"saving model to {path}")
-            save_dict = model.state_dict()
-            save_dict["epoch"] = epoch
-            save_dict["config"] = config
-            torch.save(save_dict, path)
-
-        for step in range(config.num_steps_per_iter):
-            loss = train_single_iteration(
-                config,
-                model,
-                data_loader,
-                loss_fn,
-                optimizer,
-                entropy_loss_fn,
-                alpha_optimizer,
-                log_entropy_multiplier,
-                scheduler,
-                device,
-            )
+    trainer = Trainer(config)
+    trainer.train()
 
 
 if __name__ == "__main__":

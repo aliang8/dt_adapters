@@ -13,7 +13,7 @@ import os
 import time
 import multiprocessing as mp
 from mw_dataset import OBJECTS_TO_ENV
-from utils import split
+from general_utils import split
 from garage.envs import GymEnv
 from garage.np import discount_cumsum, stack_tensor_dict_list
 
