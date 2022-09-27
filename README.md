@@ -74,3 +74,5 @@ CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py \
     online_training=True \
     env_name=pick-place-wall-v2 \
     exp_name=online_training_test
+
+current machines that run mujoco: lucy, ellie, ron 
