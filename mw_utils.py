@@ -65,6 +65,10 @@ def initialize_env(env_name):
     e._partially_observable = False
     e._freeze_rand_vec = False
     e._set_task_called = True
+
+    # # TODO: remove
+    # e.reset()
+    # e._freeze_rand_vec = True
     return e
 
 

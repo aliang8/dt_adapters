@@ -88,9 +88,10 @@ class MWDemoDataset(Dataset):
             [np.zeros((self.context_len - tlen, 1)), reward], axis=0
         )
         done = np.concatenate([np.ones((self.context_len - tlen)) * 2, done], axis=0)
-        rtg = np.concatenate(
-            [np.zeros((self.context_len - tlen, 1)), rtg], axis=0
-        )  # / scale
+        rtg = (
+            np.concatenate([np.zeros((self.context_len - tlen, 1)), rtg], axis=0)
+            / self.config.scale
+        )
         timestep = np.concatenate(
             [np.zeros((1, self.context_len - tlen)), timestep], axis=1
         )

@@ -14,7 +14,7 @@ import pickle as pkl
 
 from video import VideoRecorder
 from replay_buffer import ReplayBuffer
-import utils
+import general_utils
 
 # import dmc2gym
 import hydra
@@ -73,7 +73,7 @@ class Workspace(object):
 
         self.cfg = cfg
 
-        utils.set_seed_everywhere(cfg.seed)
+        general_utils.set_seed_everywhere(cfg.seed)
         self.device = torch.device(cfg.device)
         self.env = make_env(cfg)
 
@@ -119,7 +119,7 @@ class Workspace(object):
             episode_reward = 0
             ep_length = 0
             while not done and ep_length < self.env.max_path_length:
-                with utils.eval_mode(self.agent):
+                with general_utils.eval_mode(self.agent):
                     action = self.agent.act(obs, sample=False)
                 obs, reward, done, info = self.env.step(action)
                 # print(done)

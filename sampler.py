@@ -25,15 +25,16 @@ class ImportanceWeightBatchSampler(Sampler):
             [len(path["states"]) for path in self.dataset.trajectories]
         )
 
-        traj_rewards = np.array(
+        traj_returns = np.array(
             [path["rewards"].sum() for path in self.dataset.trajectories]
         )
 
         # shorter len
-        weight_len = (500 - traj_lens) / (sum((500 - traj_lens)))
+        assert traj_lens.max() <= 500
+        weight_len = (500 - traj_lens) / sum((500 - traj_lens))
 
         # more rewards
-        weight_rew = (traj_rewards) / (sum(traj_rewards))
+        weight_rew = traj_returns / sum(traj_returns)
         weight_avg = 0.5 * weight_len + 0.5 * weight_rew
 
         indices = np.arange(len(self.dataset))

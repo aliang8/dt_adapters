@@ -32,7 +32,9 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/anthony/.mujoco/mujoco210/bin
 export TOKENIZERS_PARALLELISM=false 
 """
 
-BASE_CMD = "CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py "
+# BASE_CMD = "CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py "
+
+BASE_CMD = "CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py --config-name=online_finetune online_training=True "
 
 # BASE_CMD = (
 #     "CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python -m garage.examples.torch.sac_metaworld "
@@ -48,31 +50,45 @@ envs = list(ALL_V2_ENVIRONMENTS_GOAL_OBSERVABLE.keys())
 configs = []
 
 experiment_grids = [
+    # {
+    #     "data.context_len": [30, 50, 100],
+    #     "log_to_wandb": ["true"],
+    #     "exp_name": ["train_dt_offline_varying_context_len_stochastic_2"],
+    # },
+    # {
+    #     "data_file": [
+    #         "trajectories_block_only_no_images_10.hdf5",
+    #         "trajectories_block_only_no_images_50.hdf5",
+    #         "trajectories_block_only_no_images_100.hdf5",
+    #     ],
+    #     "log_to_wandb": ["true"],
+    #     "exp_name": ["train_dt_offline_dataset_size_stochastic_2"],
+    # },
+    # {
+    #     "data_file": [
+    #         # "trajectories_block_only_no_images_100.hdf5",
+    #         "trajectories_block_only_no_images_50.hdf5",
+    #     ],
+    #     "model.n_layer": [6],
+    #     "model.n_head": [6],
+    #     "batch_size": [32],
+    #     "log_to_wandb": ["true"],
+    #     "exp_name": ["train_dt_offline_model_size_stochastic_2"],
+    # },
     {
-        "data.context_len": [30, 50, 100],
-        "log_to_wandb": ["true"],
-        "exp_name": ["train_dt_offline_varying_context_len_stochastic_2"],
-    },
-    {
-        "data_file": [
-            "trajectories_block_only_no_images_10.hdf5",
-            "trajectories_block_only_no_images_50.hdf5",
-            "trajectories_block_only_no_images_100.hdf5",
+        "model_ckpt_dir": [
+            "/home/anthony/dt_adapters/outputs/train_dt_offline_dataset_size_stochastic_2/seed=0,data.context_len=50,model.n_layer=4,model.n_head=4,data_file=trajectories_block_only_no_images_10.hdf5,-236768",
+            "/home/anthony/dt_adapters/outputs/train_dt_offline_dataset_size_stochastic_2/seed=0,data.context_len=50,model.n_layer=4,model.n_head=4,data_file=trajectories_block_only_no_images_50.hdf5,-322277",
+            "/home/anthony/dt_adapters/outputs/train_dt_offline_model_size_stochastic_2/seed=0,data.context_len=50,model.n_layer=6,model.n_head=6,data_file=trajectories_block_only_no_images_50.hdf5,-745180",
         ],
+        "env_name": ["pick-place-wall-v2"],
+        "load_from_ckpt": [True, False],
+        "target_return": [4000, 10000],
+        "model.target_entropy": [True, False],
+        "num_steps_per_epoch": [100],
+        "exp_name": ["test"],
         "log_to_wandb": ["true"],
-        "exp_name": ["train_dt_offline_dataset_size_stochastic_2"],
-    },
-    {
-        "data_file": [
-            # "trajectories_block_only_no_images_100.hdf5",
-            "trajectories_block_only_no_images_50.hdf5",
-        ],
-        "model.n_layer": [6],
-        "model.n_head": [6],
-        "batch_size": [32],
-        "log_to_wandb": ["true"],
-        "exp_name": ["train_dt_offline_model_size_stochastic_2"],
-    },
+    }
 ]
 for grid in experiment_grids:
     config = list(ParameterGrid(grid))

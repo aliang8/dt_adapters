@@ -5,7 +5,7 @@ import torch.nn.functional as F
 import math
 
 from agent import Agent
-import utils
+import general_utils
 
 import hydra
 from omegaconf import OmegaConf
@@ -91,7 +91,7 @@ class SACAgent(Agent):
         action = dist.sample() if sample else dist.mean
         action = action.clamp(*self.action_range)
         assert action.ndim == 2 and action.shape[0] == 1
-        return utils.to_np(action[0])
+        return general_utils.to_np(action[0])
 
     def update_critic(self, obs, action, reward, next_obs, not_done, logger, step):
         dist = self.actor(next_obs)
@@ -160,7 +160,9 @@ class SACAgent(Agent):
             self.update_actor_and_alpha(obs, logger, step)
 
         if step % self.critic_target_update_frequency == 0:
-            utils.soft_update_params(self.critic, self.critic_target, self.critic_tau)
+            general_utils.soft_update_params(
+                self.critic, self.critic_target, self.critic_tau
+            )
 
     def state_dict(self):
         return {"actor": self.actor.state_dict(), "critic": self.critic.state_dict()}

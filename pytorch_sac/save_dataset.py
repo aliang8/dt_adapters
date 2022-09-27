@@ -3,7 +3,7 @@ Generates the behavior dataset via multiprocessing env rollouts
 """
 
 import os
-import utils
+import general_utils
 import torch
 import glob
 from eval import make_env
@@ -36,7 +36,7 @@ class Workspace(object):
 
         self.cfg = cfg
 
-        utils.set_seed_everywhere(cfg.seed)
+        general_utils.set_seed_everywhere(cfg.seed)
         self.device = torch.device(cfg.device)
 
     def init_env_and_agent(self, env_name):
@@ -80,7 +80,7 @@ class Workspace(object):
                 episode_reward = 0
                 ep_length = 0
                 while not done and ep_length < env.max_path_length:
-                    with utils.eval_mode(agent):
+                    with general_utils.eval_mode(agent):
                         action = agent.act(obs, sample=False)
 
                     all_obs.append(obs)
