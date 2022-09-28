@@ -66,7 +66,7 @@ def initialize_env(env_name, obj_randomization=False):
     e._freeze_rand_vec = False
     e._set_task_called = True
 
-    if obj_randomization:
+    if not obj_randomization:
         e.reset()
         e._freeze_rand_vec = True
     return e

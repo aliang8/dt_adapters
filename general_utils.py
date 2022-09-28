@@ -32,6 +32,12 @@ KEYS_TO_USE = [
     "data.data_file",
 ]
 
+# chunk configs
+def chunks(lst, n):
+    """Yield successive n-sized chunks from lst."""
+    for i in range(0, len(lst), n):
+        yield lst[i : i + n]
+
 
 def create_exp_prefix(config):
     out = ""
@@ -41,5 +47,5 @@ def create_exp_prefix(config):
         for k in keys:
             value = value[k]
 
-        out += f"{key}={value},"
+        out += f"{key}={value}-"
     return out

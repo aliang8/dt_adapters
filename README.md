@@ -25,6 +25,9 @@ pip install -r requirements.txt
 
 Some exports needed for when running mujoco_py
 ```
+export DATA_DIR=/home/anthony/dt_adapters/data
+export LOG_DIR=/home/anthony/dt_adapters/outputs
+export WANDB_API_KEY=YOUR_WANDB_KEY
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/anthony/.mujoco/mujoco210/bin
 ``` 
 
@@ -68,10 +71,14 @@ CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py \
     env_name=pick-place-wall-v2
 ```
 
-CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py \
-    --config-name=online_finetune \
-    online_training=True \
-    env_name=pick-place-wall-v2 \
-    exp_name=online_training_test
+## Running grid search experiments
+```
+python3 slurm_jobber.py \
+    --num_processes_per_gpu=1 \
+    --run_scripts=0 \
+    --mode=online \
+    --grid_files=experiments/exp.json
+```
+
 
 current machines that run mujoco: lucy, ellie, ron 
