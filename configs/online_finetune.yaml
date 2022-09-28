@@ -14,7 +14,6 @@ alpha_weight_decay: 1e-4
 warmup_steps: 10000
 
 # logging
-output_dir: /home/anthony/dt_adapters/outputs
 exp_name: test_train_dt
 log_to_wandb: False
 
@@ -48,7 +47,6 @@ data:
   act_dim: 4
   max_ep_len: 500
   scale: ${scale}
-  data_dir: /home/anthony/dt_adapters/data/
   data_file: trajectories_block_only_no_images_10.hdf5
 
 # adapter configs

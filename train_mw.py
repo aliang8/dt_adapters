@@ -200,7 +200,7 @@ class Trainer(object):
 
     def setup_logging(self):
         group_name = self.config.exp_name
-        exp_prefix = f"{general_utils.create_exp_prefix(self.config)}-{random.randint(int(1e5), int(1e6) - 1)}"
+        exp_prefix = f"exp-{random.randint(int(1e5), int(1e6) - 1)}"
 
         if self.config.log_to_wandb:
             wandb.init(
@@ -212,7 +212,7 @@ class Trainer(object):
             )
 
         self.ckpt_dir = os.path.join(
-            self.config.output_dir, self.config.exp_name, exp_prefix, "models"
+            os.environ["LOG_DIR"], self.config.exp_name, exp_prefix, "models"
         )
         print(f"saving outputs to: {self.ckpt_dir}")
         os.makedirs(self.ckpt_dir, exist_ok=True)
@@ -461,8 +461,6 @@ class Trainer(object):
                 wandb.log(log_dict)
 
     def train(self):
-        self.save_model(epoch=0)
-
         if (
             not self.config.train_on_offline_data
             and self.config.num_warmup_rollouts > 0

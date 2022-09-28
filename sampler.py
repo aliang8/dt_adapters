@@ -31,9 +31,11 @@ class ImportanceWeightBatchSampler(Sampler):
 
         # shorter len
         assert traj_lens.max() <= 500
-        weight_len = (500 - traj_lens) / sum((500 - traj_lens))
+        inverted_lens = 500 - traj_lens + 1e-6
+        weight_len = inverted_lens / sum(inverted_lens)
 
         # more rewards
+        traj_returns += 1e-6  # prevent NaN issues
         weight_rew = traj_returns / sum(traj_returns)
         weight_avg = 0.5 * weight_len + 0.5 * weight_rew
 

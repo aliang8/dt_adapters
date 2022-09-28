@@ -27,6 +27,7 @@ Some exports needed for when running mujoco_py
 ```
 export DATA_DIR=/home/anthony/dt_adapters/data
 export LOG_DIR=/home/anthony/dt_adapters/outputs
+mkdir -p ${LOG_DIR}/slurm_outputs
 export WANDB_API_KEY=YOUR_WANDB_KEY
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/anthony/.mujoco/mujoco210/bin
 ``` 
@@ -75,9 +76,10 @@ CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py \
 ```
 python3 slurm_jobber.py \
     --num_processes_per_gpu=1 \
-    --run_scripts=0 \
+    --run_scripts=1 \
     --mode=online \
-    --grid_files=experiments/exp.json
+    --grid_files=experiments/exp.json \
+    --node=ellie
 ```
 
 

@@ -7,7 +7,6 @@ import glob
 import json
 import general_utils
 from sklearn.model_selection import ParameterGrid
-from metaworld.envs import ALL_V2_ENVIRONMENTS_GOAL_OBSERVABLE
 
 NODE_GPU_MAP = {"ellie": "2080", "lucy": "1080", "ron": "1080", "titan": "6000"}
 
@@ -29,6 +28,8 @@ def main(args):
 HOME=/home/{os.environ['USER']}
 
 wandb login {os.environ["WANDB_API_KEY"]}
+export DATA_DIR=/home/anthony/dt_adapters/data
+export LOG_DIR=/home/anthony/dt_adapters/outputs
 export LD_LIBRARY_PATH=/usr/local/cuda-10.1/lib64
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/{os.environ['USER']}/.mujoco/mujoco210/bin
