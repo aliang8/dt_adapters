@@ -20,7 +20,7 @@ class MWDemoDataset(Dataset):
         all_states = []
 
         # load trajectories into memory
-        data_file = os.path.join(config.data_dir, config.data_file)
+        data_file = os.path.join(os.environ["DATA_DIR"], config.data_file)
         with h5py.File(data_file, "r") as f:
             envs = list(f.keys())
 
