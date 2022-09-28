@@ -69,26 +69,35 @@ CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 zero_shot_dt_eval.py num_processes=0 l
 CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py \
     --config-name=online_finetune \
     online_training=True \
+    model_ckpt_dir=outputs \
     env_name=pick-place-wall-v2
 ```
 
 ## Running grid search experiments
 ```
+# running on the cluster
 python3 slurm_jobber.py \
     --num_processes_per_gpu=1 \
     --run_scripts=1 \
     --mode=online \
     --grid_files=experiments/exp_obj_randomization.json \
-    --node=ron 
-```
-
-
-current machines that run mujoco: lucy, ellie, ron 
+    --node=ron \
+    --lower_priority=1
 
 python3 slurm_jobber.py \
-    --num_processes_per_gpu=2 \
+    --num_processes_per_gpu=3 \
     --run_scripts=0 \
     --mode=online \
     --grid_files=experiments/exp_adapter_vs_no_adapter.json \
-    --node=titan \
-    --lower_priority=1
+    --run_amber
+```
+
+
+current machines that run mujoco: lucy, ellie, ron, titan
+
+CUDA_VISIBLE_DEVICES=1,2 python3 slurm_jobber.py \
+    --num_processes_per_gpu=2 \
+    --run_scripts=0 \
+    --mode=online \
+    --grid_files=experiments/exp_pretrain_vs_no_pretrain.json \
+    --run_amber

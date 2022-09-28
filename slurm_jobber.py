@@ -5,10 +5,12 @@ Script for creating slurm files and then executing them for searching over hyper
 import os
 import glob
 import json
+import random
 import general_utils
 from sklearn.model_selection import ParameterGrid
 
 NODE_GPU_MAP = {"ellie": "2080", "lucy": "1080", "ron": "1080", "titan": "6000"}
+NUM_GPUS_AVAILABLE = 4
 
 
 def main(args):
@@ -59,7 +61,10 @@ export TOKENIZERS_PARALLELISM=false
         base_cmd = "CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py --config-name=online_finetune online_training=True "
 
     for i, chunk in enumerate(chunks):
-        slurm_cmd = header
+        if args.run_amber:
+            slurm_cmd = ""
+        else:
+            slurm_cmd = header
 
         for j, cfg in enumerate(chunk):
             slurm_cmd += base_cmd
@@ -69,19 +74,34 @@ export TOKENIZERS_PARALLELISM=false
                 key += f"_{k}_{v}"
 
             if j != len(chunk) - 1:
-                slurm_cmd += "&\n"
+                if args.run_amber:
+                    slurm_cmd += f"&> outputs/stdout_{random.randint(int(1e5), int(1e6) - 1)}.txt & "
+                else:
+                    slurm_cmd += "&\n"
 
         slurm_cmd = slurm_cmd[
             :-1
         ]  # remove last space, important or the job will crash :/
 
-        slrm_file = os.path.join("slurm_files", f"run_train_{i}.slrm")
-        with open(slrm_file, "w") as f:
-            f.write(slurm_cmd)
+        if args.run_amber:
+            print(slurm_cmd + " &")
+            print("=" * 50)
+            if args.run_scripts:
+                # redirect outputs to some file
+                os.system(
+                    slurm_cmd.replace(
+                        "CUDA_VISIBLE_DEVICES=0", f"CUDA_VISIBLE_DEVICES={i}"
+                    )
+                    + " &"
+                )
+        else:
+            slrm_file = os.path.join("slurm_files", f"run_train_{i}.slrm")
+            with open(slrm_file, "w") as f:
+                f.write(slurm_cmd)
 
-        if args.run_scripts:
-            print(f"running: sbatch {slrm_file}")
-            os.system(f"sbatch {slrm_file}")
+            if args.run_scripts:
+                print(f"running: sbatch {slrm_file}")
+                os.system(f"sbatch {slrm_file}")
 
 
 if __name__ == "__main__":
@@ -124,6 +144,9 @@ if __name__ == "__main__":
         nargs="+",
         default="experiments/exp.json",
         help="path to json files that contain dictionary of parameters",
+    )
+    parser.add_argument(
+        "--run_amber", action="store_true", help="are we running on nonslurm"
     )
     args = parser.parse_args()
 

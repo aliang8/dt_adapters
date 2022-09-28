@@ -15,5 +15,5 @@ imageio
 wandb
 hydra-core
 adapter-transformers
-garage
+garage==2021.3.0
 sklearn
