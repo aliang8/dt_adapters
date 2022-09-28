@@ -81,7 +81,7 @@ python3 slurm_jobber.py \
     --num_processes_per_gpu=1 \
     --run_scripts=1 \
     --mode=online \
-    --grid_files=experiments/exp_obj_randomization.json \
+    --grid_files=experiments/exp_obj_randomization.yaml \
     --node=ron \
     --lower_priority=1
 
@@ -89,10 +89,15 @@ python3 slurm_jobber.py \
     --num_processes_per_gpu=3 \
     --run_scripts=0 \
     --mode=online \
-    --grid_files=experiments/exp_adapter_vs_no_adapter.json \
+    --grid_files=experiments/exp_adapter_vs_no_adapter.yaml \
     --run_amber
 ```
 
 ## Notes
 Current machines that run mujoco: lucy, ellie, ron, titan
 Amber
+
+To kill job on certain GPU (0)
+```
+kill $(nvidia-smi -g 0 | awk '$5=="PID" {p=1} p {print $5}')
+```
