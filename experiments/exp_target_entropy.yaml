@@ -1,0 +1,18 @@
+# In this experiment, we want to compare 
+# model performance if we use auto-alpha tuning
+# vs without auto-tuning.
+
+env_name: [
+    bin-picking-v2,
+    pick-place-v2
+]
+target_return: [4000]
+model: 
+    target_entropy: [True, False]
+obj_randomization: [True]
+seed: [0, 1]
+exp_name: [adapters_target_entropy]
+log_to_wandb: [True]
+num_warmup_rollouts: [50]
+num_epochs: [200]
+eval_every: [5]

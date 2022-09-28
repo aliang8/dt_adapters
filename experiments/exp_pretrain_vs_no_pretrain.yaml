@@ -1,0 +1,15 @@
+# In this experiment, we want to compare 
+# model performance if we fine-tune a model pretrained
+# on offline data vs training completely from scratch
+
+env_name: [
+    push-back-v2
+]
+target_return: [4000]
+load_from_ckpt: [True, False]
+seed: [0, 1]
+exp_name: [pretrain_vs_no_pretrain]
+log_to_wandb: [True]
+num_warmup_rollouts: [50]
+num_epochs: [200]
+eval_every: [5]
