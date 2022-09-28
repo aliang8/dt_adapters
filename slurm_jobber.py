@@ -19,16 +19,16 @@ HEADER = """#!/bin/bash
 #SBATCH --cpus-per-task=5
 #SBATCH --gpus-per-node=2080:1
 #SBATCH --nodelist=ink-ellie
-#SBATCH --output=/home/anthony/dt_adapters/slurm_output/%j.out
+#SBATCH --output=/home/ishika/dt_adapters/slurm_output/%j.out
 
-HOME=/home/anthony
+HOME=/home/ishika
 
 # conda activate robomimic_venv
 
-wandb login 0815350e6c514d36864729063abb10fc03898c00
+wandb login 979634104dd458fff1e7e55ad9f2a59fc389d51f
 export LD_LIBRARY_PATH=/usr/local/cuda-10.1/lib64
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/anthony/.mujoco/mujoco210/bin
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/ishika/.mujoco/mujoco210/bin
 export TOKENIZERS_PARALLELISM=false 
 """
 
@@ -75,20 +75,48 @@ experiment_grids = [
     #     "log_to_wandb": ["true"],
     #     "exp_name": ["train_dt_offline_model_size_stochastic_2"],
     # },
+    # {
+    #     "model_ckpt_dir": [
+    #         "/home/anthony/dt_adapters/outputs/train_dt_offline_dataset_size_stochastic_2/seed=0,data.context_len=50,model.n_layer=4,model.n_head=4,data_file=trajectories_block_only_no_images_10.hdf5,-236768",
+    #         "/home/anthony/dt_adapters/outputs/train_dt_offline_dataset_size_stochastic_2/seed=0,data.context_len=50,model.n_layer=4,model.n_head=4,data_file=trajectories_block_only_no_images_50.hdf5,-322277",
+    #         "/home/anthony/dt_adapters/outputs/train_dt_offline_model_size_stochastic_2/seed=0,data.context_len=50,model.n_layer=6,model.n_head=6,data_file=trajectories_block_only_no_images_50.hdf5,-745180",
+    #     ],
+    #     "env_name": ["pick-place-wall-v2"],
+    #     "load_from_ckpt": [True, False],
+    #     "target_return": [4000, 10000],
+    #     "model.target_entropy": [True, False],
+    #     "num_steps_per_epoch": [100],
+    #     "exp_name": ["test"],
+    #     "log_to_wandb": ["true"],
+    # }
     {
         "model_ckpt_dir": [
             "/home/anthony/dt_adapters/outputs/train_dt_offline_dataset_size_stochastic_2/seed=0,data.context_len=50,model.n_layer=4,model.n_head=4,data_file=trajectories_block_only_no_images_10.hdf5,-236768",
-            "/home/anthony/dt_adapters/outputs/train_dt_offline_dataset_size_stochastic_2/seed=0,data.context_len=50,model.n_layer=4,model.n_head=4,data_file=trajectories_block_only_no_images_50.hdf5,-322277",
-            "/home/anthony/dt_adapters/outputs/train_dt_offline_model_size_stochastic_2/seed=0,data.context_len=50,model.n_layer=6,model.n_head=6,data_file=trajectories_block_only_no_images_50.hdf5,-745180",
+            # "/home/anthony/dt_adapters/outputs/train_dt_offline_dataset_size_stochastic_2/seed=0,data.context_len=50,model.n_layer=4,model.n_head=4,data_file=trajectories_block_only_no_images_50.hdf5,-322277",
+            # "/home/anthony/dt_adapters/outputs/train_dt_offline_model_size_stochastic_2/seed=0,data.context_len=50,model.n_layer=6,model.n_head=6,data_file=trajectories_block_only_no_images_50.hdf5,-745180",
         ],
-        "env_name": ["pick-place-wall-v2"],
-        "load_from_ckpt": [True, False],
-        "target_return": [4000, 10000],
-        "model.target_entropy": [True, False],
-        "num_steps_per_epoch": [100],
-        "exp_name": ["test"],
-        "log_to_wandb": ["true"],
+        "env_name": [
+            "bin_picking_v2",
+            # "hand_insert_v2",
+            # "pick_out_of_hole_v2",
+            "pick_place_v2",
+            # "pick_place_wall_v2",
+            # "push_back_v2",
+            # "push_v2",
+            # "push_wall_v2",
+            # "shelf_place_v2",
+            # "sweep_into_v2",
+            # "sweep_v2"
+        ],
+        "target_return": [4000],
+        "model.target_entropy": [False],
+        "obj_randomization": [True, False],
+        "seed": [0, 1],
+        "exp_name": ["adapters_task_obj_randomization"],
+        "log_to_wandb": [True],
+        "num_warmup_rollouts": [50]
     }
+
 ]
 for grid in experiment_grids:
     config = list(ParameterGrid(grid))
@@ -123,5 +151,5 @@ for i, chunk in enumerate(chunks):
     with open(file, "w") as f:
         f.write(slurm_cmd)
 
-    print(f"running: sbatch {file}")
-    os.system(f"sbatch {file}")
+    # print(f"running: sbatch {file}")
+    # os.system(f"sbatch {file}")

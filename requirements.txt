@@ -16,3 +16,4 @@ wandb
 hydra-core
 adapter-transformers
 garage
+sklearn
