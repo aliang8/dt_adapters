@@ -52,22 +52,52 @@ class Trainer(object):
         self.total_training_iters = 0
 
         def loss_fn(**kwargs):
-            loss = None
+            action_pred_loss = torch.tensor(0.0)
             if config.model.stochastic:
                 if config.model.use_entropy:
                     if config.model.target_entropy:
-                        loss = -torch.mean(kwargs["a_log_probs"]) - torch.exp(
+                        action_pred_loss = -torch.mean(
+                            kwargs["a_log_probs"]
+                        ) - torch.exp(
                             kwargs["log_entropy_multiplier"].detach()
-                        ) * torch.mean(kwargs["entropies"])
-                    else:
-                        loss = -torch.mean(kwargs["a_log_probs"]) - torch.mean(
+                        ) * torch.mean(
                             kwargs["entropies"]
                         )
+                    else:
+                        action_pred_loss = -torch.mean(
+                            kwargs["a_log_probs"]
+                        ) - torch.mean(kwargs["entropies"])
                 else:
-                    loss = -torch.mean(kwargs["a_log_probs"])
+                    action_pred_loss = -torch.mean(kwargs["a_log_probs"])
             else:
-                loss = torch.nn.MSELoss(kwargs["action_preds"], kwargs["action_target"])
-            return loss
+                action_pred_loss = torch.nn.MSELoss(
+                    kwargs["action_preds"], kwargs["action_target"]
+                )
+
+            if config.model.predict_return_dist:
+                # need to first bin the target returns via quantization
+                # scale = (config.model.max_return - 0) / (num_bins - 0)
+                bin_width = config.model.bin_width
+                num_bins = int(config.model.max_return / bin_width)
+                scale = bin_width
+                zero_point = 0
+
+                binned_targets = torch.quantize_per_tensor(
+                    kwargs["return_targets"].float(),
+                    scale=scale,
+                    zero_point=zero_point,
+                    dtype=torch.quint8,
+                ).int_repr()
+
+                # use crossentropy to minimize prediction and gt return dist
+                return_pred_loss = torch.nn.CrossEntropyLoss()(
+                    kwargs["return_preds"].reshape(-1, num_bins),
+                    binned_targets.reshape(-1),
+                )
+            else:
+                return_pred_loss = torch.tensor(0.0)
+
+            return action_pred_loss, return_pred_loss
 
         self.loss_fn = loss_fn
 
@@ -115,7 +145,7 @@ class Trainer(object):
             )
             rewards = torch.cat([rewards, torch.zeros(1, device=self.device)])
 
-            action, agent_info = self.model.get_action(
+            action, return_target, agent_info = self.model.get_action(
                 states=(states.to(dtype=torch.float32) - state_mean) / state_std,
                 actions=actions.to(dtype=torch.float32),
                 returns_to_go=target_return,
@@ -123,6 +153,7 @@ class Trainer(object):
                 timesteps=timesteps.to(dtype=torch.long),
                 use_means=use_means,
                 use_rtg_mask=use_rtg_mask,
+                sample_return_dist=self.config.model.predict_return_dist,
             )
             actions[-1] = action
             action = action.detach().cpu().numpy()
@@ -391,8 +422,15 @@ class Trainer(object):
             batch["use_rtg_mask"] = batch["online"].reshape(-1, 1)
 
             action_target = torch.clone(batch["actions"])
+            return_target = torch.clone(batch["returns_to_go"])
 
-            _, action_preds, _, action_log_probs, entropies = self.model.forward(
+            (
+                _,
+                action_preds,
+                return_preds,
+                action_log_probs,
+                entropies,
+            ) = self.model.forward(
                 **batch,
                 target_actions=action_target,
                 use_means=False,  # sample during training
@@ -408,16 +446,19 @@ class Trainer(object):
             loss_fn_inputs = {
                 "action_preds": action_preds,
                 "action_targets": action_target,
+                "return_preds": return_preds,
+                "return_targets": return_target,
                 "a_log_probs": action_log_probs,
                 "entropies": entropies,
                 "log_entropy_multiplier": self.log_entropy_multiplier,
             }
 
-            loss = self.loss_fn(**loss_fn_inputs)
+            action_pred_loss, return_pred_loss = self.loss_fn(**loss_fn_inputs)
 
             # update model
             self.optimizer.zero_grad()
-            loss.backward()
+            total_loss = action_pred_loss + return_pred_loss
+            total_loss.backward()
 
             model_params = [
                 p
@@ -434,7 +475,8 @@ class Trainer(object):
             self.optimizer.step()
 
             log_dict = {
-                "train/action_loss": loss.item(),
+                "train/action_pred_loss": action_pred_loss.item(),
+                "train/return_pred_loss": return_pred_loss.item(),
                 "train/entropy": entropies.mean().item(),
                 "train/action_log_prob": action_log_probs.mean().item(),
                 "train/max_norm": max_norm,

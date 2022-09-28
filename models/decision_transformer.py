@@ -1,8 +1,8 @@
-from turtle import pd
 import numpy as np
 import copy
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 import transformers
 
@@ -10,20 +10,9 @@ from models.model import TrajectoryModel
 from models.trajectory_gpt2 import TrajectoryGPT2
 
 from collections import OrderedDict
-
-# from robomimic.algo.algo import PolicyAlgo
-# from robomimic.algo.bc import BC
-# from robomimic.algo import register_algo_factory_func, PolicyAlgo, RolloutPolicy
-# import robomimic.utils.loss_utils as LossUtils
-# import robomimic.utils.tensor_utils as TensorUtils
-# import robomimic.utils.torch_utils as TorchUtils
-# import robomimic.utils.obs_utils as ObsUtils
-# from robomimic.models.obs_nets import ObservationGroupEncoder
-
-# from robomimic.config.dt_config_mw import OBJECTS
 from mw_constants import OBJECTS
 
-from torch.distributions import Normal, Independent
+from torch.distributions import Normal, Independent, Categorical
 from torch.distributions.transformed_distribution import TransformedDistribution
 from torch.distributions.transforms import TanhTransform
 
@@ -47,6 +36,10 @@ class DecisionTransformerSeparateState(TrajectoryModel):
         max_ep_len=4096,
         action_tanh=True,
         approximate_entropy_samples=None,
+        predict_return_dist=False,
+        max_return=4000,
+        bin_width=50,
+        num_return_samples=250,
         **kwargs
     ):
         super().__init__(state_dim, act_dim, max_length=max_length)
@@ -114,6 +107,12 @@ class DecisionTransformerSeparateState(TrajectoryModel):
         self.stochastic_tanh = stochastic_tanh
         self.remove_pos_embs = remove_pos_embs
         self.approximate_entropy_samples = approximate_entropy_samples
+        self.predict_return_dist = predict_return_dist
+        self.num_return_samples = num_return_samples
+
+        if predict_return_dist:
+            self.num_bins = int(max_return / bin_width)
+            self.predict_return_logits = torch.nn.Linear(hidden_size, self.num_bins)
 
     def forward(
         self,
@@ -126,6 +125,7 @@ class DecisionTransformerSeparateState(TrajectoryModel):
         attention_mask=None,
         use_means=False,
         use_rtg_mask=None,
+        sample_return_dist=False,
         **kwargs
     ):
         batch_size, seq_length = states.shape[0], states.shape[1]
@@ -238,7 +238,22 @@ class DecisionTransformerSeparateState(TrajectoryModel):
 
         # get predictions
         # predict next return given state and action
-        return_preds = self.predict_return(action_reps)
+        if self.predict_return_dist:
+            # predict binned returns
+            return_probs = self.predict_return_logits(action_reps)
+
+            # create discrete prob distribution
+            return_dist = Categorical(F.softmax(return_probs, dim=-1))
+
+            if sample_return_dist:
+                # sample N RTGs from learned distribution during evaluation
+                # and pick the one with highest value
+                return_preds = return_dist.sample((self.num_return_samples,))
+                return_preds = torch.max(return_preds, dim=0).values
+            else:
+                return_preds = return_dist.probs
+        else:
+            return_preds = self.predict_return(action_reps)
 
         # predict next state given state and action
         state_preds = self.predict_state(action_reps)
@@ -303,6 +318,7 @@ class DecisionTransformerSeparateState(TrajectoryModel):
         timesteps,
         use_means,
         use_rtg_mask,
+        sample_return_dist,
         **kwargs
     ):
         # we don't care about the past rewards in this model
@@ -382,7 +398,7 @@ class DecisionTransformerSeparateState(TrajectoryModel):
         else:
             attention_mask = None
 
-        _, action_preds, _, _, _ = self.forward(
+        _, action_preds, return_preds, _, _ = self.forward(
             states,
             actions,
             returns_to_go,
@@ -392,7 +408,8 @@ class DecisionTransformerSeparateState(TrajectoryModel):
             attention_mask=attention_mask,
             use_means=use_means,  # use mean action during evaluation
             use_rtg_mask=use_rtg_mask,
+            sample_return_dist=sample_return_dist,
             **kwargs,
         )
 
-        return action_preds[0, -1], {}
+        return action_preds[0, -1], return_preds[0, -1], {}
