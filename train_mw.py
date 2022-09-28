@@ -167,7 +167,7 @@ class Trainer(object):
     def setup_env(self, env_name):
         # create env for online training
         if self.config.online_training:
-            env = mw_utils.initialize_env(env_name)
+            env = mw_utils.initialize_env(env_name, self.config.obj_randomization)
             max_path_length = env.max_path_length
             self.env = GymEnv(env, max_episode_length=max_path_length)
 
@@ -349,20 +349,20 @@ class Trainer(object):
         print("=" * 50)
 
     def save_model(self, epoch):
-        if self.config.online_finetuning and self.config.use_adapters:
+        if self.config.online_training and self.config.use_adapters:
             # save just the adapter weights
-            self.model.save_adapter(
+            self.model.transformer.save_adapter(
                 self.ckpt_dir,
                 self.config.env_name,
                 meta_dict={"epoch": epoch, "config": self.config},
             )
-        else:
-            path = os.path.join(self.ckpt_dir, f"epoch_{epoch:03d}.pt")
-            print(f"saving model to {path}")
-            save_dict = self.model.state_dict()
-            save_dict["epoch"] = epoch
-            save_dict["config"] = self.config
-            torch.save(save_dict, path)
+
+        path = os.path.join(self.ckpt_dir, f"epoch_{epoch:03d}.pt")
+        print(f"saving model to {path}")
+        save_dict = self.model.state_dict()
+        save_dict["epoch"] = epoch
+        save_dict["config"] = self.config
+        torch.save(save_dict, path)
 
     def create_traj_from_path(self, path):
         trajectory = {
@@ -461,12 +461,14 @@ class Trainer(object):
                 wandb.log(log_dict)
 
     def train(self):
+        self.save_model(epoch=0)
+
         if (
             not self.config.train_on_offline_data
             and self.config.num_warmup_rollouts > 0
         ):
             self.warmup_data_collection()
-
+        
         # train loop
         for epoch in tqdm(range(self.config.num_epochs)):
 

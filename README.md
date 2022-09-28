@@ -64,7 +64,6 @@ CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 zero_shot_dt_eval.py num_processes=0 l
 # Online training 
 CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py \
     --config-name=online_finetune \
-    model_ckpt_dir=/model/checkpoint/dir \
     online_training=True \
     env_name=pick-place-wall-v2
 ```

@@ -60,15 +60,15 @@ ENVS_AND_SCRIPTED_POLICIES = [
 ]
 
 
-def initialize_env(env_name):
+def initialize_env(env_name, obj_randomization=False):
     e = ALL_V2_ENVIRONMENTS[env_name]()
     e._partially_observable = False
     e._freeze_rand_vec = False
     e._set_task_called = True
 
-    # # TODO: remove
-    # e.reset()
-    # e._freeze_rand_vec = True
+    if obj_randomization:
+        e.reset()
+        e._freeze_rand_vec = True
     return e
 
 
