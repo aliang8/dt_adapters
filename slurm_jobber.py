@@ -13,6 +13,19 @@ from sklearn.model_selection import ParameterGrid
 NODE_GPU_MAP = {"ellie": "2080", "lucy": "1080", "ron": "1080", "titan": "6000"}
 NUM_GPUS_AVAILABLE = 4
 
+import collections
+
+
+def flatten(d, parent_key="", sep="_"):
+    items = []
+    for k, v in d.items():
+        new_key = parent_key + sep + k if parent_key else k
+        if isinstance(v, collections.MutableMapping):
+            items.extend(flatten(v, new_key, sep=sep).items())
+        else:
+            items.append((new_key, v))
+    return dict(items)
+
 
 def main(args):
     # create slurm files
@@ -53,7 +66,7 @@ export TOKENIZERS_PARALLELISM=false
                 grid = yaml.safe_load(f)
             except yaml.YAMLError as exc:
                 print(exc)
-        print(grid)
+        grid = flatten(grid, sep=".")
         config = list(ParameterGrid(grid))
         configs.extend(config)
 
@@ -65,7 +78,7 @@ export TOKENIZERS_PARALLELISM=false
             "CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py --config-name=train "
         )
     elif args.mode == "online":
-        base_cmd = "CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py --config-name=online_finetune online_training=True "
+        base_cmd = "CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py --config-name=online_finetune "
 
     for i, chunk in enumerate(chunks):
         if args.run_amber:

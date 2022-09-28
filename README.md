@@ -54,13 +54,15 @@ CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 collect_scripted_policy_demos.py
 ```
 # Training
 CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py \
-    batch_size=32 \
-    data_file=trajectories_block_only_no_images_10.hdf5 \
-    exp_name=test \
-    log_to_wandb=false
+    general.batch_size=32 \
+    data.data_file=trajectories_block_only_no_images_10.hdf5 \
+    general.exp_name=test \
+    general.log_to_wandb=false
 
 # Zero-shot inference
-CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 zero_shot_dt_eval.py num_processes=0 log_to_wandb=false
+CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 zero_shot_dt_eval.py \
+    num_processes=0 \
+    log_to_wandb=false
 ```
 
 ## Finetuning on adapters
@@ -68,8 +70,7 @@ CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 zero_shot_dt_eval.py num_processes=0 l
 # Online training 
 CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py \
     --config-name=online_finetune \
-    online_training=True \
-    model_ckpt_dir=outputs \
+    model_ckpt_dir=/model/checkpoint/dir \
     env_name=pick-place-wall-v2
 ```
 
@@ -92,13 +93,6 @@ python3 slurm_jobber.py \
     --run_amber
 ```
 
-
-current machines that run mujoco: lucy, ellie, ron, titan
-
-CUDA_VISIBLE_DEVICES=2 DISPLAY=:0 python3 train_mw.py \
-    --config-name=train \
-    online_training=False \
-    batch_size=64 \
-    data_file=trajectories_block_only_no_images_50.hdf5 \
-    exp_name=test \
-    log_to_wandb=false
+## Notes
+Current machines that run mujoco: lucy, ellie, ron, titan
+Amber

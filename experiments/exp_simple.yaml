@@ -1,13 +1,14 @@
 # In this experiment, we want to do a simple sanity check
 
-env_name: [
-    sweep-v2
-]
-target_return: [4000]
-obj_randomization: [True, False]
-seed: [0, 1]
-exp_name: [adapters_sanity_check]
-log_to_wandb: [True]
-num_warmup_rollouts: [10]
-num_epochs: [200]
-eval_every: [1]
+general:
+    env_name: [
+        sweep-v2
+    ]
+    target_return: [4000]
+    obj_randomization: [True, False]
+    seed: [0, 1]
+    exp_name: [adapters_sanity_check]
+    log_to_wandb: [True]
+    num_warmup_rollouts: [10]
+    num_epochs: [200]
+    eval_every: [1]
