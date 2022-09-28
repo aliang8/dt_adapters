@@ -1,7 +1,7 @@
 # In this experiment, we want to do a simple sanity check
 
 env_name: [
-    pick-place-wall-v2
+    sweep-v2
 ]
 target_return: [4000]
 obj_randomization: [True, False]

@@ -1,0 +1,53 @@
+# @package _group_
+
+# shared configs 
+
+# training config
+seed: 1
+save_every: 10
+eval_every: 1
+num_steps_per_epoch: 50
+skip_first_eval: True
+num_epochs: 100
+batch_size: 64
+
+lr: 1e-4
+weight_decay: 1e-4
+alpha_lr: 1e-4
+alpha_weight_decay: 1e-4
+warmup_steps: 10000
+
+# logging
+exp_name: test
+log_to_wandb: False
+
+# video configs
+log_eval_videos: True
+log_eval_videos_every: 10
+fps: 20
+image_height: 128
+image_width: 128
+
+# online_finetuning
+online_training: False
+model_ckpt_dir: /data/anthony/dt_adapters/outputs/
+load_from_ckpt: False
+
+env_name: pick-place-wall-v2
+obj_randomization: False
+
+num_online_rollouts: 5
+num_eval_rollouts: 10
+train_on_offline_data: True
+num_warmup_rollouts: 10
+target_return: 4000
+scale: 1000
+
+num_data_workers: 1
+use_adapters: False
+adapter_task_name: ${env_name} # this should be the task name
+
+adapter:
+  config: pfeiffer+inv
+  nonlinearity: none 
+  reduction_factor: none

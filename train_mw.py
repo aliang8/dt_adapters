@@ -526,6 +526,8 @@ class Trainer(object):
 
 @hydra.main(config_path="configs", config_name="train")
 def main(config):
+    OmegaConf.set_struct(config, False)
+    config.update(config.general)
     trainer = Trainer(config)
     trainer.train()
 
