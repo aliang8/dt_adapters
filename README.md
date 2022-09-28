@@ -99,5 +99,5 @@ CUDA_VISIBLE_DEVICES=1,2 python3 slurm_jobber.py \
     --num_processes_per_gpu=2 \
     --run_scripts=0 \
     --mode=online \
-    --grid_files=experiments/exp_pretrain_vs_no_pretrain.json \
+    --grid_files=experiments/exp_simple.yaml \
     --run_amber

@@ -6,6 +6,7 @@ import os
 import glob
 import json
 import random
+import yaml
 import general_utils
 from sklearn.model_selection import ParameterGrid
 
@@ -46,7 +47,13 @@ export TOKENIZERS_PARALLELISM=false
     configs = []
     for grid_file in args.grid_files:
         print(grid_file)
-        grid = json.load(open(grid_file, "r"))
+        # grid = json.load(open(grid_file, "r"))
+        with open(grid_file, "r") as f:
+            try:
+                grid = yaml.safe_load(f)
+            except yaml.YAMLError as exc:
+                print(exc)
+        print(grid)
         config = list(ParameterGrid(grid))
         configs.extend(config)
 
@@ -73,18 +80,23 @@ export TOKENIZERS_PARALLELISM=false
                 slurm_cmd += f"{k}={v} "
                 key += f"_{k}_{v}"
 
+            if args.run_amber:
+                slurm_cmd += (
+                    f"&> outputs/stdout_{random.randint(int(1e5), int(1e6) - 1)}.txt "
+                )
+
             if j != len(chunk) - 1:
-                if args.run_amber:
-                    slurm_cmd += f"&> outputs/stdout_{random.randint(int(1e5), int(1e6) - 1)}.txt & "
-                else:
-                    slurm_cmd += "&\n"
+                slurm_cmd += "&\n"
 
         slurm_cmd = slurm_cmd[
             :-1
         ]  # remove last space, important or the job will crash :/
 
         if args.run_amber:
-            print(slurm_cmd + " &")
+            print(
+                slurm_cmd.replace("CUDA_VISIBLE_DEVICES=0", f"CUDA_VISIBLE_DEVICES={i}")
+                + " &"
+            )
             print("=" * 50)
             if args.run_scripts:
                 # redirect outputs to some file
