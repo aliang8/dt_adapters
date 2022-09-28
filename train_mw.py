@@ -468,7 +468,7 @@ class Trainer(object):
             and self.config.num_warmup_rollouts > 0
         ):
             self.warmup_data_collection()
-        
+
         # train loop
         for epoch in tqdm(range(self.config.num_epochs)):
 

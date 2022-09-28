@@ -37,6 +37,7 @@ train_on_offline_data: False
 num_warmup_rollouts: 10
 target_return: 4000
 scale: 1000
+obj_randomization: False
 
 # data 
 num_data_workers: 1
