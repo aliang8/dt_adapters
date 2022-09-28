@@ -15,6 +15,11 @@ def main(args):
     # create slurm files
     os.makedirs("slurm_files", exist_ok=True)
 
+    if args.lower_priority:
+        more_gpus = "#SBATCH --qos=general"
+    else:
+        more_gpus = """
+        """
     header = f"""#!/bin/bash
 #SBATCH --job-name=train_dt_adapters
 #SBATCH --partition=debug
@@ -24,7 +29,7 @@ def main(args):
 #SBATCH --gpus-per-node={NODE_GPU_MAP[args.node]}:1
 #SBATCH --nodelist=ink-{args.node}
 #SBATCH --output={os.environ['LOG_DIR']}/slurm_output/%j.out
-
+{more_gpus}
 HOME=/home/{os.environ['USER']}
 
 wandb login {os.environ["WANDB_API_KEY"]}
@@ -94,6 +99,12 @@ if __name__ == "__main__":
         type=int,
         default=0,
         help="should it also run sbatch or just create the files",
+    )
+    parser.add_argument(
+        "--lower_priority",
+        type=int,
+        default=0,
+        help="run the jobs with lower priority so i can take up more gpu space",
     )
     parser.add_argument(
         "--mode",
