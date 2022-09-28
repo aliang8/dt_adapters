@@ -71,7 +71,7 @@ class Trainer(object):
 
         self.loss_fn = loss_fn
 
-    def rollout(self, use_means=False, attend_to_rtg=False, phase="train"):
+    def rollout(self, use_means=False, attend_to_rtg=False, log_eval_videos=False):
         """Sample a single episode of the agent in the environment."""
         env_steps = []
         agent_infos = []
@@ -82,7 +82,7 @@ class Trainer(object):
         state_dim = self.model.state_dim
         act_dim = self.model.act_dim
 
-        if self.config.log_eval_videos and phase == "eval":
+        if log_eval_videos:
             self.env._visualize = True
         else:
             self.env._visualize = False
@@ -188,7 +188,9 @@ class Trainer(object):
         for _ in tqdm(range(self.config.num_warmup_rollouts)):
             with torch.no_grad():
                 # don't attend to Returns for warmup because we are using pretrained model
-                path = self.rollout(use_means=True, attend_to_rtg=False, phase="train")
+                path = self.rollout(
+                    use_means=True, attend_to_rtg=False, log_eval_videos=False
+                )
             new_trajectory = self.create_traj_from_path(path)
             self.dataset.trajectories.append(new_trajectory)
         print(f"took {time.time() - start} seconds for warmup collection")
@@ -326,9 +328,12 @@ class Trainer(object):
 
     def eval(self, epoch):
         eval_rollouts = []
+        log_eval_videos = epoch % self.config.log_eval_videos_every == 0
         for _ in range(self.config.num_eval_rollouts):
             with torch.no_grad():
-                path = self.rollout(use_means=True, attend_to_rtg=True, phase="eval")
+                path = self.rollout(
+                    use_means=True, attend_to_rtg=True, log_eval_videos=log_eval_videos
+                )
                 eval_rollouts.append(path)
 
         # compute metrics and log
@@ -491,7 +496,9 @@ class Trainer(object):
                 if self.config.online_training:
                     with torch.no_grad():
                         path = self.rollout(
-                            use_means=False, attend_to_rtg=True, phase="train"
+                            use_means=False,
+                            attend_to_rtg=True,
+                            log_eval_videos=False,
                         )
                     # import ipdb
 

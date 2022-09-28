@@ -5,6 +5,7 @@ Script for creating slurm files and then executing them for searching over hyper
 import os
 import glob
 import json
+import yaml
 import general_utils
 from sklearn.model_selection import ParameterGrid
 
@@ -44,7 +45,13 @@ export TOKENIZERS_PARALLELISM=false
     configs = []
     for grid_file in args.grid_files:
         print(grid_file)
-        grid = json.load(open(grid_file, "r"))
+        # grid = json.load(open(grid_file, "r"))
+        with open(grid_file, "r") as f:
+            try:
+                grid = yaml.safe_load(f)
+            except yaml.YAMLError as exc:
+                print(exc)
+        print(grid)
         config = list(ParameterGrid(grid))
         configs.extend(config)
 
