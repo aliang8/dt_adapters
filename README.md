@@ -95,9 +95,10 @@ python3 slurm_jobber.py \
 
 current machines that run mujoco: lucy, ellie, ron, titan
 
-CUDA_VISIBLE_DEVICES=1,2 python3 slurm_jobber.py \
-    --num_processes_per_gpu=2 \
-    --run_scripts=0 \
-    --mode=online \
-    --grid_files=experiments/exp_simple.yaml \
-    --run_amber
+CUDA_VISIBLE_DEVICES=2 DISPLAY=:0 python3 train_mw.py \
+    --config-name=train \
+    online_training=False \
+    batch_size=64 \
+    data_file=trajectories_block_only_no_images_50.hdf5 \
+    exp_name=test \
+    log_to_wandb=false

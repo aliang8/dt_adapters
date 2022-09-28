@@ -17,3 +17,5 @@ hydra-core
 adapter-transformers
 garage==2021.3.0
 sklearn
+colorlog
+hydra_colorlog
