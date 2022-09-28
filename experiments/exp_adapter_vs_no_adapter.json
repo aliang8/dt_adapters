@@ -1,0 +1,14 @@
+{
+    "env_name": [
+        "pick-place-v2"
+    ],
+    "target_return": [4000],
+    "obj_randomization": [true],
+    "use_adapters": [true, false],
+    "seed": [0, 1],
+    "exp_name": ["adapter_vs_no_adapter"],
+    "log_to_wandb": [true],
+    "num_warmup_rollouts": [50],
+    "num_epochs": [200],
+    "eval_every": [5]
+}

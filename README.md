@@ -78,9 +78,17 @@ python3 slurm_jobber.py \
     --num_processes_per_gpu=1 \
     --run_scripts=1 \
     --mode=online \
-    --grid_files=experiments/exp.json \
-    --node=ellie
+    --grid_files=experiments/exp_obj_randomization.json \
+    --node=ron 
 ```
 
 
 current machines that run mujoco: lucy, ellie, ron 
+
+python3 slurm_jobber.py \
+    --num_processes_per_gpu=2 \
+    --run_scripts=0 \
+    --mode=online \
+    --grid_files=experiments/exp_adapter_vs_no_adapter.json \
+    --node=titan \
+    --lower_priority=1
