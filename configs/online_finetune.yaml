@@ -26,8 +26,9 @@ image_width: 128
 # online_finetuning
 online_training: True
 # model_ckpt_dir: /home/anthony/dt_adapters/outputs/train_dt_offline_dataset_size/seed=0,data.context_len=50,model.n_layer=4,model.n_head=4,data_file=trajectories_block_only_no_images_10.hdf5,-107777
-model_ckpt_dir: /home/anthony/dt_adapters/outputs/train_dt_offline_dataset_size_stochastic_2/seed=0,data.context_len=50,model.n_layer=4,model.n_head=4,data_file=trajectories_block_only_no_images_10.hdf5,-236768
+# model_ckpt_dir: /home/anthony/dt_adapters/outputs/train_dt_offline_dataset_size_stochastic_2/seed=0,data.context_len=50,model.n_layer=4,model.n_head=4,data_file=trajectories_block_only_no_images_10.hdf5,-236768
 # model_ckpt_dir: /home/anthony/dt_adapters/outputs/train_dt_offline_dataset_size_stochastic_2/seed=0,data.context_len=50,model.n_layer=4,model.n_head=4,data_file=trajectories_block_only_no_images_50.hdf5,-322277
+model_ckpt_dir: /data/anthony/dt_adapters/outputs/
 load_from_ckpt: True
 env_name: pick-place-wall-v2
 num_online_rollouts: 5

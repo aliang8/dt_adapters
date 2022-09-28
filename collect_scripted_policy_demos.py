@@ -20,11 +20,11 @@ from garage.np import discount_cumsum, stack_tensor_dict_list
 
 LOG_TO_WANDB = False
 DEBUG = False
-DEMOS_PER_ENV = 100
+DEMOS_PER_ENV = 50
 if DEBUG:
     DEMOS_PER_ENV = 5
 FILTER_ENVS_BY_OBJ = "block"  # get all envs with block object
-DATA_DIR = "/home/anthony/dt_adapters/data/"
+DATA_DIR = "/data/anthony/dt_adapters/data/"
 DATA_FILE = f"trajectories_{FILTER_ENVS_BY_OBJ}_only_no_images_{DEMOS_PER_ENV}.hdf5"
 NUM_PROCESSES = 10
 MULTIPROCESSING = True
