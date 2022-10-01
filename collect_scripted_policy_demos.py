@@ -20,7 +20,7 @@ from garage.np import discount_cumsum, stack_tensor_dict_list
 
 LOG_TO_WANDB = False
 DEBUG = False
-DEMOS_PER_ENV = 50
+DEMOS_PER_ENV = 100
 if DEBUG:
     DEMOS_PER_ENV = 5
 FILTER_ENVS_BY_OBJ = "block"  # get all envs with block object
@@ -83,7 +83,7 @@ def collect_dataset(envs, results_queue, wandb_run):
             continue
 
         print(env_name)
-        env = initialize_env(env_name)
+        env = initialize_env(env_name, obj_randomization=True)
         max_path_length = env.max_path_length
         env = GymEnv(env, max_episode_length=max_path_length)
         videos = []

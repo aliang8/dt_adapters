@@ -3,16 +3,14 @@ defaults:
   - data: metaworld
   - general: base
 
-# extra eval config
-num_processes: 0
-filter_envs_by_obj: block
-metrics_file: /data/anthony/dt_adapters/metrics_10.csv
-
 general:
-  exp_name: zero_shot_eval
-
-  online_training: True
+  online_training: False
   model_ckpt_dir: /data/anthony/dt_adapters/outputs/
   load_from_ckpt: True
+  env_name: ${data.finetune_tasks[0]}
+  num_eval_rollouts: 10
+  train_on_offline_data: True
   obj_randomization: False
-  log_outputs: False
+
+  use_adapters: True  
+  stage: finetuning

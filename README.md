@@ -54,6 +54,7 @@ CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 collect_scripted_policy_demos.py
 ```
 # Training
 CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py \
+    --config-name=train \
     general.batch_size=32 \
     data.data_file=trajectories_block_only_no_images_10.hdf5 \
     general.exp_name=test \
@@ -61,12 +62,19 @@ CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py \
 
 # Zero-shot inference
 CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 zero_shot_dt_eval.py \
+    --config-name=eval \
     num_processes=0 \
     log_to_wandb=false
 ```
 
 ## Finetuning on adapters
 ```
+# Offline fine-tuning 
+CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py \
+    --config-name=offline_finetune \
+    model_ckpt_dir=/model/checkpoint/dir \
+    env_name=pick-place-wall-v2
+
 # Online training 
 CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py \
     --config-name=online_finetune \
