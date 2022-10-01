@@ -25,5 +25,5 @@ target_entropy: False
 # for predicting returns
 predict_return_dist: False
 max_return: 500
-bin_width: 50
+bin_width: 5
 num_return_samples: 250

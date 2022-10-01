@@ -9,7 +9,7 @@ from mw_utils import get_object_indices
 
 
 class MWDemoDataset(Dataset):
-    def __init__(self, config):
+    def __init__(self, config, stage="pretraining"):
         self.config = config
         self.state_dim = config.state_dim
         self.act_dim = config.act_dim
@@ -17,6 +17,9 @@ class MWDemoDataset(Dataset):
         self.max_ep_len = config.max_ep_len
 
         self.trajectories = []
+        self.train_tasks = config.train_tasks
+        self.finetune_tasks = config.finetune_tasks
+
         all_states = []
 
         # load trajectories into memory
@@ -25,6 +28,15 @@ class MWDemoDataset(Dataset):
             envs = list(f.keys())
 
             for env in envs:
+                if stage == "pretraining" and env not in self.train_tasks:
+                    continue
+
+                elif stage == "finetuning" and env not in self.finetune_tasks:
+                    continue
+
+                if stage not in ["pretraining", "finetuning"]:
+                    raise Exception(f"{stage} not available")
+
                 num_demos = len(f[env].keys())
 
                 for k, demo in f[env].items():
@@ -38,7 +50,9 @@ class MWDemoDataset(Dataset):
                             "actions": demo["action"][()],
                             "rewards": demo["reward"][()],
                             "dones": demo["done"][()],
-                            "returns": discount_cumsum(demo["reward"][()], gamma=1.0),
+                            "returns_to_go": discount_cumsum(
+                                demo["reward"][()], gamma=1.0
+                            ),
                             "timesteps": np.arange(len(states)),
                             "attention_mask": np.ones(len(states)),
                             "online": 0,

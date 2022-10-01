@@ -9,3 +9,4 @@ general:
   model_ckpt_dir: ""
   use_adapters: False
   num_online_rollouts: 1
+  stage: pretraining

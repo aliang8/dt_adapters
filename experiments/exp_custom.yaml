@@ -3,10 +3,17 @@ general:
         pick-place-v2
     ]
     target_return: [500]
+    scale: [100]
     obj_randomization: [False]
-    seed: [0, 1]
-    exp_name: [adapters_target_return]
+    seed: [0, 1, 2]
+    exp_name: [adapters_with_target_entropy]
     log_to_wandb: [True]
-    num_warmup_rollouts: [10]
+    num_warmup_rollouts: [50]
     num_epochs: [200]
     eval_every: [1]
+    num_steps_per_epoch: [200]
+
+model:
+    stochastic: [True]
+    use_entropy: [True]
+    target_entropy: [True]

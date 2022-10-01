@@ -15,3 +15,4 @@ general:
     num_warmup_rollouts: [50]
     num_epochs: [200]
     eval_every: [5]
+    use_adapters: [True]

@@ -94,9 +94,7 @@ export TOKENIZERS_PARALLELISM=false
                 key += f"_{k}_{v}"
 
             if args.run_amber:
-                slurm_cmd += (
-                    f"&> outputs/stdout_{random.randint(int(1e5), int(1e6) - 1)}.txt "
-                )
+                slurm_cmd += f"&> outputs/slurm_outputs/stdout_{random.randint(int(1e5), int(1e6) - 1)}.txt "
 
             if j != len(chunk) - 1:
                 slurm_cmd += "&\n"
