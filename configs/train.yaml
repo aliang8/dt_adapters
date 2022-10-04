@@ -1,6 +1,10 @@
 defaults:
-  - model: decision_transformer
-  - data: metaworld
+  - model: 
+    - base
+    - decision_transformer
+  - data: 
+    - base 
+    - mw_blocks_only
   - general: base
 
 general:
@@ -8,5 +12,4 @@ general:
   train_on_offline_data: True
   model_ckpt_dir: ""
   use_adapters: False
-  num_online_rollouts: 1
   stage: pretraining

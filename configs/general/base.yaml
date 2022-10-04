@@ -1,15 +1,13 @@
-# @package _group_
-
 # shared configs 
 
 # training config
 seed: 1                                             # random seed
 save_every: 10                                      # epochs between saving model checkpoints
 eval_every: 1                                       # epochs between evaluating policy
-num_steps_per_epoch: 50                             # number of gradient updates per online rollout
+num_steps_per_epoch: 200                            # number of gradient updates per online rollout
 skip_first_eval: True                               # skip first evalution step
 num_epochs: 100                                     # number of training epochs
-batch_size: 64                                    
+batch_size: 128                                    
 
 lr: 1e-4
 weight_decay: 1e-4
@@ -37,8 +35,10 @@ load_from_ckpt: False
 
 env_name: ""
 obj_randomization: False
+hide_goal: False
+freeze_backbone: False
 
-num_online_rollouts: 5
+num_online_rollouts: 1
 num_eval_rollouts: 10
 train_on_offline_data: True
 num_warmup_rollouts: 10

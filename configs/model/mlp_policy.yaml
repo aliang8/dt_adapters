@@ -1,0 +1,3 @@
+model_cls: mlp_policy
+
+num_prediction_head_layers: 4

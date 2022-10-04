@@ -1,7 +1,10 @@
 defaults:
-  - model: decision_transformer
-  - data: metaworld
-  - general: base
+  - model: 
+    - base
+    - decision_transformer
+  - data: 
+    - base 
+    - mw_blocks_only
 
 general:
   online_training: True
