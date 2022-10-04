@@ -41,11 +41,15 @@ class MWDemoDataset(Dataset):
 
                 for k, demo in f[env].items():
                     states = demo["obs"][()]
+
+                    if self.config.hide_goal:
+                        states[:, -3:] = 0
+
                     all_states.append(states)
 
                     self.trajectories.append(
                         {
-                            "states": demo["obs"][()],
+                            "states": states,
                             "obj_ids": get_object_indices(env),
                             "actions": demo["action"][()],
                             "rewards": demo["reward"][()],

@@ -1,0 +1,6 @@
+context_len: 50     # number of timesteps the DT model can attend to 
+state_dim: 39       # all MW environments have the same state vector structure
+act_dim: 4          # position control [x,y,z,gripper]
+max_ep_len: 500     # max number of steps allowed in MW environments
+scale: 1000         # return normalization for online fine-tuning
+hide_goal: False

@@ -1,29 +1,21 @@
-# @package _group_
 hidden_size: 768
 n_layer: 4
 n_head: 4
 dropout: 0.1
 max_length: ${data.context_len}
-act_dim: 4
-pos_hand: 3
-obs_obj_max_len: 14
-gripper_distance_apart: 1
-goal_pos: 3
-state_dim: 39
 component_hidden_size: 256
 action_tanh: True
 
-stochastic: True 
 log_std_min: -20
 log_std_max: 2
 remove_pos_embs: False
-stochastic_tanh: True
+stochastic_tanh: False
 approximate_entropy_samples: 1000
-use_entropy: True
-target_entropy: False
 
 # for predicting returns
 predict_return_dist: False
 max_return: 500
 bin_width: 5
 num_return_samples: 250
+
+model_cls: decision_transformer

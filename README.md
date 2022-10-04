@@ -47,7 +47,8 @@ CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 pytorch_sac/eval_garage.py demos_per_e
 
 # Collect demos using scripted policies
 # TODO: add argparsing here
-CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 collect_scripted_policy_demos.py
+CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 collect_scripted_policy_demos.py \
+    --config-name=data_collection
 ```
 
 ## Pretraining DT model 

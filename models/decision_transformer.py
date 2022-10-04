@@ -8,6 +8,7 @@ import transformers
 
 from models.model import TrajectoryModel
 from models.trajectory_gpt2 import TrajectoryGPT2
+from models.state_vec_embedding import MWStateEmbeddingNet
 
 from collections import OrderedDict
 from mw_constants import OBJECTS
@@ -40,6 +41,8 @@ class DecisionTransformerSeparateState(TrajectoryModel):
         max_return=4000,
         bin_width=50,
         num_return_samples=250,
+        emb_state_separate=False,
+        num_layers=3,
         **kwargs
     ):
         super().__init__(state_dim, act_dim, max_length=max_length)
@@ -55,27 +58,24 @@ class DecisionTransformerSeparateState(TrajectoryModel):
         # is that the positional embeddings are removed (since we'll add those ourselves)
         self.transformer = TrajectoryGPT2(config)
 
+        self.emb_state_separate = True
+
         # state embedding
-        self.pos_hand = pos_hand  # for gripper
-        self.goal_pos = goal_pos
-        self.obs_obj_max_len = obs_obj_max_len
-        self.gripper_distance_apart = 1
-
-        self.embed_arm_state = torch.nn.Linear(
-            self.pos_hand + self.gripper_distance_apart, component_hidden_size
-        )
-        self.embed_obj_id = nn.Embedding(len(OBJECTS), component_hidden_size)
-        self.embed_goal_pos = torch.nn.Linear(goal_pos, component_hidden_size)
-        self.embed_obj_state = torch.nn.Linear(
-            obs_obj_max_len // 2, component_hidden_size
-        )
-
-        # projection layer
-        self.embed_state = torch.nn.Linear(6 * component_hidden_size, hidden_size)
+        if self.emb_state_separate:
+            self.embed_state = MWStateEmbeddingNet(
+                state_dim,
+                act_dim,
+                hidden_size,
+                pos_hand,
+                goal_pos,
+                obs_obj_max_len,
+                num_layers,
+            )
+        else:
+            self.embed_state = torch.nn.Linear(self.state_dim, hidden_size)
 
         self.embed_timestep = nn.Embedding(max_ep_len, hidden_size)
         self.embed_return = torch.nn.Linear(1, hidden_size)
-        # self.embed_state = torch.nn.Linear(self.state_dim, hidden_size)
         self.embed_action = torch.nn.Linear(self.act_dim, hidden_size)
 
         self.embed_ln = nn.LayerNorm(hidden_size)
@@ -144,53 +144,11 @@ class DecisionTransformerSeparateState(TrajectoryModel):
         attention_mask = attention_mask.long()
         use_rtg_mask = use_rtg_mask.long()
 
-        curr_obs = states[:, :, :18]
-        prev_obs = states[:, :, 18:36]
+        if self.emb_state_separate:
+            state_embeddings = self.embed_state(states, obj_ids)
+        else:
+            state_embeddings = self.embed_state(states)
 
-        # split the state into subparts
-        curr_state = torch.split(
-            curr_obs,
-            [
-                self.pos_hand + self.gripper_distance_apart,
-                self.obs_obj_max_len,
-            ],
-            dim=-1,
-        )
-        arm_state = curr_state[0]
-        obj_states = curr_state[1]
-        goal_pos = states[:, :, -3:]
-
-        # embed each modality with a different head
-        arm_state_embeddings = self.embed_arm_state(arm_state)
-        goal_pos_embeddings = self.embed_goal_pos(goal_pos)
-
-        # assume there are two objects
-        # each obj state is pos + quaternion
-        obj_1_state, obj_2_state = torch.chunk(obj_states, 2, dim=-1)
-        obj_1_id_embeddings = (
-            self.embed_obj_id(obj_ids[:, 0]).unsqueeze(1).repeat((1, seq_length, 1))
-        )
-        obj_2_id_embeddings = (
-            self.embed_obj_id(obj_ids[:, 1]).unsqueeze(1).repeat((1, seq_length, 1))
-        )
-
-        obj_1_state_embeddings = self.embed_obj_state(obj_1_state)
-        obj_2_state_embeddings = self.embed_obj_state(obj_2_state)
-
-        concat_state_embeddings = torch.cat(
-            [
-                arm_state_embeddings,
-                obj_1_id_embeddings,
-                obj_1_state_embeddings,
-                obj_2_id_embeddings,
-                obj_2_state_embeddings,
-                goal_pos_embeddings,
-            ],
-            dim=-1,
-        )
-
-        state_embeddings = self.embed_state(concat_state_embeddings)
-        # state_embeddings = self.embed_state(states)
         action_embeddings = self.embed_action(actions)
         returns_embeddings = self.embed_return(returns_to_go)
         time_embeddings = self.embed_timestep(timesteps)
@@ -413,3 +371,13 @@ class DecisionTransformerSeparateState(TrajectoryModel):
         )
 
         return action_preds[0, -1], return_preds[0, -1], {}
+
+    def freeze_backbone(self):
+        for module in [
+            self.embed_state,
+            self.embed_return,
+            self.embed_action,
+            self.embed_timestep,
+        ]:
+            for param in module.parameters():
+                param.requires_grad = False

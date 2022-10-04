@@ -21,6 +21,7 @@ from torch.utils.data import Dataset, Sampler, RandomSampler
 from mw_dataset import MWDemoDataset
 from omegaconf import OmegaConf
 from models.decision_transformer import DecisionTransformerSeparateState
+from models.mlp_policy import MLPPolicy
 from sampler import ImportanceWeightBatchSampler
 
 from transformers.adapters.configuration import AdapterConfig
@@ -269,7 +270,12 @@ class Trainer(object):
             os.makedirs(self.ckpt_dir, exist_ok=True)
 
     def setup_model(self):
-        model = DecisionTransformerSeparateState(**self.config.model)
+        if self.config.model.model_cls == "decision_transformer":
+            model_cls = DecisionTransformerSeparateState
+        elif self.config.model.model_cls == "mlp_policy":
+            model_cls = MLPPolicy
+
+        model = model_cls(**self.config.model)
         print("base model params: ", general_utils.count_parameters(model))
 
         if self.config.model_ckpt_dir and self.config.load_from_ckpt:
@@ -279,7 +285,7 @@ class Trainer(object):
             state_dict = torch.load(ckpt_file)
             model_config = state_dict["config"]
 
-            model = DecisionTransformerSeparateState(**model_config.model)
+            model = model_cls(**model_config.model)
             del state_dict["config"]
             del state_dict["epoch"]
             model.load_state_dict(state_dict, strict=True)
@@ -300,10 +306,14 @@ class Trainer(object):
 
             # set the adapters to be used in every forward pass
             model.transformer.set_active_adapters(task_name)
-            print("model params using adapter: ", general_utils.count_parameters(model))
+
+        if self.config.stage == "finetuning" and self.config.freeze_backbone:
+            model.freeze_backbone()
 
         self.model = model.to(self.device)
         self.model.train()
+        print(self.model)
+        print("final model params: ", general_utils.count_parameters(model))
 
     def setup_dataloader(self):
         if self.config.online_training:
@@ -563,7 +573,7 @@ class Trainer(object):
                 self.save_model(epoch)
 
             # run evaluation for online_training
-            if epoch % self.config.eval_every == 0:
+            if self.config.eval_every > 0 and epoch % self.config.eval_every == 0:
                 if self.config.skip_first_eval and epoch == 0:
                     pass
                 else:

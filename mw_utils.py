@@ -60,9 +60,9 @@ ENVS_AND_SCRIPTED_POLICIES = [
 ]
 
 
-def initialize_env(env_name, obj_randomization=False):
+def initialize_env(env_name, obj_randomization=False, hide_goal=False):
     e = ALL_V2_ENVIRONMENTS[env_name]()
-    e._partially_observable = False
+    e._partially_observable = hide_goal
     e._freeze_rand_vec = False
     e._set_task_called = True
 
