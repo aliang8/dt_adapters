@@ -124,7 +124,7 @@ CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py \
     --config-name=train \
     data=[base,mw_45_5] \
     model=[base,decision_transformer] \
-    general.batch_size=256 \
+    general.batch_size=64 \
     general.num_epochs=100 \
     general.num_steps_per_epoch=200 \
     general.num_online_rollouts=1 \

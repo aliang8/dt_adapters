@@ -18,7 +18,8 @@ from torch.utils.data import DataLoader
 from torch.utils.data import Dataset, Sampler, RandomSampler
 
 
-from mw_dataset import MWDemoDataset
+from data.mw_dataset import MWDemoDataset
+from data.rlbench_dataset import RLBenchDemoDataset
 from omegaconf import OmegaConf
 from models.decision_transformer import DecisionTransformerSeparateState
 from models.mlp_policy import MLPPolicy
