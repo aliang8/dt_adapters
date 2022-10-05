@@ -48,7 +48,9 @@ class Trainer(object):
         self.setup_model()
 
         # setup dataset
+        start = time.time()
         self.dataset = MWDemoDataset(self.config.data, stage=config.stage)
+        print(f"took {time.time() - start} seconds to load data")
         self.setup_dataloader()
         self.setup_optimizer()
         self.setup_env(self.config.env_name)

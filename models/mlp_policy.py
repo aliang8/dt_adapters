@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from models.state_vec_embedding import MWStateEmbeddingNet
+import general_utils
 
 
 class MLPPolicy(nn.Module):
@@ -37,15 +38,14 @@ class MLPPolicy(nn.Module):
         self.prediction_layer = nn.Sequential(*prediction_head)
 
     def freeze_backbone(self):
-        for param in self.encoder.parameters():
-            param.requires_grad = False
+        general_utils.freeze_module(self.encoder)
 
-    def forward(self, states, actions, obj_ids, images=None, **kwargs):
+    def forward(self, states, actions, obj_ids, img_feats=None, **kwargs):
         states = states.float()
         obj_ids = obj_ids.long()
 
         if self.emb_state_separate:
-            embedding = self.encoder(states, obj_ids, images)
+            embedding = self.encoder(states, obj_ids, img_feats)
         else:
             embedding = self.encoder(states.float())
 

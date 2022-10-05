@@ -1,8 +1,6 @@
 hidden_size: 768
-n_layer: 4
-n_head: 4
-dropout: 0.1
 max_length: ${data.context_len}
+max_ep_len: 500
 component_hidden_size: 256
 action_tanh: True
 
@@ -19,3 +17,9 @@ bin_width: 5
 num_return_samples: 250
 
 model_cls: decision_transformer
+
+gpt2:
+  n_layer: 4
+  n_head: 4
+  dropout: 0.1
+  n_embd: ${model.hidden_size}

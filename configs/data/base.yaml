@@ -6,4 +6,5 @@ scale: 1000         # return normalization for online fine-tuning
 hide_goal: False
 
 image_size: 64
+vision_backbone: clip
 state_keys: ["low_level", "image"]
