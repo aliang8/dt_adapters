@@ -1,11 +1,13 @@
 from torch.utils.data import Dataset, Sampler
 import os
 import h5py
+import torch
 import random
 import numpy as np
-from general_utils import discount_cumsum
+from general_utils import discount_cumsum, AttrDict
 from mw_constants import OBJECTS_TO_ENV
 from mw_utils import get_object_indices
+from torchvision.transforms import transforms as T
 
 
 class MWDemoDataset(Dataset):
@@ -19,6 +21,19 @@ class MWDemoDataset(Dataset):
         self.trajectories = []
         self.train_tasks = config.train_tasks
         self.finetune_tasks = config.finetune_tasks
+
+        self.img_transforms = T.Compose(
+            [
+                T.Lambda(
+                    lambda images: torch.stack(
+                        [T.ToTensor()(image) for image in images]
+                    )
+                ),
+                T.Resize([config.image_size]),
+                T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+                T.Lambda(lambda images: images.numpy()),
+            ]
+        )
 
         all_states = []
 
@@ -47,21 +62,22 @@ class MWDemoDataset(Dataset):
 
                     all_states.append(states)
 
-                    self.trajectories.append(
-                        {
-                            "states": states,
-                            "obj_ids": get_object_indices(env),
-                            "actions": demo["action"][()],
-                            "rewards": demo["reward"][()],
-                            "dones": demo["done"][()],
-                            "returns_to_go": discount_cumsum(
-                                demo["reward"][()], gamma=1.0
-                            ),
-                            "timesteps": np.arange(len(states)),
-                            "attention_mask": np.ones(len(states)),
-                            "online": 0,
-                        }
-                    )
+                    traj = {
+                        "states": states,
+                        "obj_ids": get_object_indices(env),
+                        "actions": demo["action"][()],
+                        "rewards": demo["reward"][()],
+                        "dones": demo["done"][()],
+                        "returns_to_go": discount_cumsum(demo["reward"][()], gamma=1.0),
+                        "timesteps": np.arange(len(states)),
+                        "attention_mask": np.ones(len(states)),
+                        "online": 0,
+                    }
+
+                    if "image" in self.config.state_keys:
+                        traj["images"] = demo["images"][()]
+
+                    self.trajectories.append(traj)
 
         # not sure if this is proper
         all_states = np.concatenate(all_states, axis=0)
@@ -129,4 +145,35 @@ class MWDemoDataset(Dataset):
             "online": traj["online"],
         }
 
+        if "image" in self.config.state_keys:
+            image_shape = traj["images"][0].shape
+            images = traj["images"][si : si + self.context_len].reshape(
+                -1, *image_shape
+            )
+            images = self.img_transforms(images)
+            new_image_shape = images.shape
+            images = np.concatenate(
+                [np.zeros((self.context_len - tlen, *new_image_shape[1:])), images],
+                axis=0,
+            )
+            out["images"] = images
+
         return out
+
+
+if __name__ == "__main__":
+    config = AttrDict(
+        data_file="trajectories_all_with_images_10.hdf5",
+        state_dim=39,
+        act_dim=4,
+        context_len=50,
+        max_ep_len=500,
+        train_tasks=["pick-place-v2"],
+        finetune_tasks=[],
+        state_keys=["image"],
+        hide_goal=False,
+        scale=100,
+    )
+
+    dataset = MWDemoDataset(config)
+    dataset[0]

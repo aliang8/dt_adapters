@@ -26,7 +26,11 @@ CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 zero_shot_dt_eval.py \
     general.obj_randomization=True
 
 
+# =============================
 # MLP experiments
+# =============================
+
+# Pretraining
 CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py \
     --config-name=train \
     data=[base,mw_45_5] \
@@ -35,16 +39,16 @@ CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py \
     general.num_epochs=100 \
     general.num_steps_per_epoch=200 \
     general.num_online_rollouts=1 \
-    data.data_file=trajectories_all_no_images_10.hdf5 \
-    general.exp_name=pretrain_ml_45_no_goals_mlp_policy_larger \
-    general.log_to_wandb=True \
+    data.data_file=trajectories_all_with_images_10.hdf5 \
+    general.exp_name=pretrain_ml_45_images_mlp_policy \
+    general.log_to_wandb=False \
     general.stage=pretraining \
-    general.log_outputs=True \
+    general.log_outputs=False \
     general.load_from_ckpt=False \
     general.use_adapters=False \
     general.eval_every=0 \
     data.hide_goal=True \
-    model.num_layers=6 \
+    model.state_encoder.num_layers=6 \
     model.num_prediction_head_layers=4 \
     model.hidden_size=256
 
@@ -55,20 +59,23 @@ CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py \
     data=[base,mw_45_5] \
     model=[base,mlp_policy] \
     data.data_file=trajectories_all_no_images_10.hdf5 \
-    general.exp_name=offline_finetune_bin-picking-v2_mw45_ft_mlp \
+    general.exp_name=mlp_policy_mw45_hand_insert_ft_full \
     general.log_to_wandb=True \
     general.stage=finetuning \
     general.log_outputs=True \
-    general.model_ckpt_dir=/data/anthony/dt_adapters/outputs/pretrain_ml_45_no_goals_mlp_policy/exp-203335 \
+    general.model_ckpt_dir=/data/anthony/dt_adapters/outputs/pretrain_ml_45_no_goals_mlp_policy_larger_w_relu/exp-658003 \
     general.use_adapters=False \
     general.eval_every=1 \
     general.obj_randomization=True \
-    general.freeze_backbone=True \
-    data.finetune_tasks=["bin-picking-v2"] \
-    model.num_layers=4 \
-    model.num_prediction_head_layers=0 \
-    model.hidden_size=128
+    general.freeze_backbone=False \
+    data.finetune_tasks=["hand-insert-v2"] \
+    model.num_layers=6 \
+    model.num_prediction_head_layers=4 \
+    model.hidden_size=256
 
+# =============================
+# DT experiments
+# =============================
 
 # Finetune
 CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py \

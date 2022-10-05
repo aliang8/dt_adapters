@@ -19,38 +19,19 @@ from torch.distributions.transforms import TanhTransform
 
 
 class DecisionTransformerSeparateState(TrajectoryModel):
-    def __init__(
-        self,
-        state_dim,
-        act_dim,
-        pos_hand,
-        goal_pos,
-        obs_obj_max_len,
-        hidden_size,
-        component_hidden_size,
-        stochastic=False,
-        log_std_min=-20,
-        log_std_max=2,
-        remove_pos_embs=False,
-        stochastic_tanh=False,
-        max_length=None,
-        max_ep_len=4096,
-        action_tanh=True,
-        approximate_entropy_samples=None,
-        predict_return_dist=False,
-        max_return=4000,
-        bin_width=50,
-        num_return_samples=250,
-        emb_state_separate=False,
-        num_layers=3,
-        **kwargs
-    ):
-        super().__init__(state_dim, act_dim, max_length=max_length)
+    def __init__(self, config, **kwargs):
+        self.config = config
 
-        self.hidden_size = hidden_size
+        super().__init__(
+            self.config.state_dim,
+            self.config.act_dim,
+            max_length=self.config.max_length,
+        )
+
+        self.hidden_size = self.config.hidden_size
         config = transformers.GPT2Config(
             vocab_size=1,  # doesn't matter -- we don't use the vocab
-            n_embd=hidden_size,
+            n_embd=self.hidden_size,
             **kwargs,
         )
 
@@ -58,61 +39,54 @@ class DecisionTransformerSeparateState(TrajectoryModel):
         # is that the positional embeddings are removed (since we'll add those ourselves)
         self.transformer = TrajectoryGPT2(config)
 
-        self.emb_state_separate = True
-
         # state embedding
         if self.emb_state_separate:
-            self.embed_state = MWStateEmbeddingNet(
-                state_dim,
-                act_dim,
-                hidden_size,
-                pos_hand,
-                goal_pos,
-                obs_obj_max_len,
-                num_layers,
-            )
+            self.embed_state = MWStateEmbeddingNet(self.config.state_encoder)
         else:
-            self.embed_state = torch.nn.Linear(self.state_dim, hidden_size)
+            self.embed_state = torch.nn.Linear(self.state_dim, self.hidden_size)
 
-        self.embed_timestep = nn.Embedding(max_ep_len, hidden_size)
-        self.embed_return = torch.nn.Linear(1, hidden_size)
-        self.embed_action = torch.nn.Linear(self.act_dim, hidden_size)
+        self.embed_timestep = nn.Embedding(self.config.max_ep_len, self.hidden_size)
+        self.embed_return = torch.nn.Linear(1, self.hidden_size)
+        self.embed_action = torch.nn.Linear(self.act_dim, self.hidden_size)
 
-        self.embed_ln = nn.LayerNorm(hidden_size)
+        self.embed_ln = nn.LayerNorm(self.hidden_size)
 
         # note: we don't predict states or returns for the paper
-        self.predict_state = torch.nn.Linear(hidden_size, self.state_dim)
+        self.predict_state = torch.nn.Linear(self.hidden_size, self.state_dim)
 
-        if stochastic:
+        # Settings from stochastic actions
+        self.stochastic = self.config.stochastic
+        self.log_std_min = self.config.log_std_min
+        self.log_std_max = self.config.log_std_max
+        self.stochastic_tanh = self.config.stochastic_tanh
+        self.remove_pos_embs = self.config.remove_pos_embs
+        self.approximate_entropy_samples = self.config.approximate_entropy_samples
+        self.predict_return_dist = self.config.predict_return_dist
+        self.num_return_samples = self.config.num_return_samples
+        self.predict_return_dist = self.config.predict_return_dist
+
+        if self.stochastic:
             self.predict_action_mean = nn.Sequential(
-                nn.Linear(hidden_size, self.act_dim),
+                nn.Linear(self.hidden_size, self.act_dim),
             )
             self.predict_action_logstd = nn.Sequential(
-                nn.Linear(hidden_size, self.act_dim),
+                nn.Linear(self.hidden_size, self.act_dim),
             )
         else:
             self.predict_action = nn.Sequential(
                 *(
-                    [nn.Linear(hidden_size, self.act_dim)]
-                    + ([nn.Tanh()] if action_tanh else [])
+                    [nn.Linear(self.hidden_size, self.act_dim)]
+                    + ([nn.Tanh()] if self.config.action_tanh else [])
                 )
             )
 
-        self.predict_return = torch.nn.Linear(hidden_size, 1)
+        self.predict_return = torch.nn.Linear(self.hidden_size, 1)
 
-        # Settings from stochastic actions
-        self.stochastic = stochastic
-        self.log_std_min = log_std_min
-        self.log_std_max = log_std_max
-        self.stochastic_tanh = stochastic_tanh
-        self.remove_pos_embs = remove_pos_embs
-        self.approximate_entropy_samples = approximate_entropy_samples
-        self.predict_return_dist = predict_return_dist
-        self.num_return_samples = num_return_samples
-
-        if predict_return_dist:
-            self.num_bins = int(max_return / bin_width)
-            self.predict_return_logits = torch.nn.Linear(hidden_size, self.num_bins)
+        if self.predict_return_dist:
+            self.num_bins = int(self.config.max_return / self.config.bin_width)
+            self.predict_return_logits = torch.nn.Linear(
+                self.hidden_size, self.num_bins
+            )
 
     def forward(
         self,

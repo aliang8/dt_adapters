@@ -102,6 +102,17 @@ python3 slurm_jobber.py \
     --run_amber
 ```
 
+## Generating data for RLBench
+```
+First follow the steps at https://github.com/stepjam/RLBench to install RLBench and the simulation environment PyRep
+DISPLAY=:0.1 python3 rlbench_dt/dataset_generator.py \
+    --save_path=/data/anthony/dt_adapters/data/rlbench_data/mt15_v1 \
+    --tasks=[] \
+    --processes=10 \
+    --episodes_per_task=10 \
+    --variations=2
+```
+
 ## Notes
 Current machines that run mujoco: lucy, ellie, ron, titan
 Amber
