@@ -19,9 +19,11 @@ from torch.utils.data import Dataset, Sampler, RandomSampler
 
 
 from rlbench_dataset import RLBenchDemoDataset
+
 # from omegaconf import OmegaConf
 
 from models.decision_transformer import DecisionTransformerSeparateState
+
 # from sampler import ImportanceWeightBatchSampler
 from transformers.adapters.configuration import AdapterConfig
 
@@ -39,6 +41,7 @@ from RLBench.rlbench.action_modes.gripper_action_modes import Discrete
 from RLBench.rlbench.environment import Environment
 from RLBench.rlbench.observation_config import ObservationConfig
 from RLBench.rlbench.tasks import MT15_V1
+
 
 class Trainer(object):
     def __init__(self, config):

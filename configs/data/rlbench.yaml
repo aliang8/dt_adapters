@@ -1,0 +1,22 @@
+ll_state_keys: 
+  - joint_positions
+  - joint_forces
+  - gripper_open
+  - gripper_pose
+  - gripper_joint_positions
+  - gripper_touch_forces
+  # - gripper_matrix
+  # - task_low_dim_state
+
+image_keys: 
+  - overhead_rgb
+  - overhead_depth
+
+  # - wrist_rgb
+  # - wrist_depth
+  # - front_rgb
+  # - front_depth
+  # - left_shoulder_rgb
+  # - left_shoulder_depth
+  # - right_shoulder_rgb
+  # - right_shoulder_depth
