@@ -4,19 +4,19 @@ import h5py
 import random
 import numpy as np
 from general_utils import discount_cumsum
-# from mw_constants import OBJECTS_TO_ENV
-# from mw_utils import get_object_indices
 
-from RLBench.rlbench.action_modes.action_mode import MoveArmThenGripper
-from RLBench.rlbench.action_modes.arm_action_modes import JointVelocity
-from RLBench.rlbench.action_modes.gripper_action_modes import Discrete
-from RLBench.rlbench.environment import Environment
-from RLBench.rlbench.observation_config import ObservationConfig
-from RLBench.rlbench.tasks import MT30_V1
+from rlbench.action_modes.action_mode import MoveArmThenGripper
+from rlbench.action_modes.arm_action_modes import JointVelocity
+from rlbench.action_modes.gripper_action_modes import Discrete
+from rlbench.environment import Environment
+from rlbench.observation_config import ObservationConfig
+from rlbench.tasks import *
+from general_utils import AttrDict
+
 
 class RLBenchDemoDataset(Dataset):
     def __init__(self, config):
-        # self.config = config
+        self.config = config
         # self.state_dim = config.state_dim
         # self.act_dim = config.act_dim
         # self.context_len = config.context_len
@@ -42,9 +42,9 @@ class RLBenchDemoDataset(Dataset):
         #                     "states": demo["obs"][()],
         #                     "obj_ids": get_object_indices(env),
         #                     "actions": demo["action"][()],
-                            # "rewards": demo["reward"][()],
-                            # "dones": demo["done"][()],
-                            # "returns": discount_cumsum(demo["reward"][()], gamma=1.0),
+        # "rewards": demo["reward"][()],
+        # "dones": demo["done"][()],
+        # "returns": discount_cumsum(demo["reward"][()], gamma=1.0),
         #                     "timesteps": np.arange(len(states)),
         #                     "attention_mask": np.ones(len(states)),
         #                     "online": 0,
@@ -59,29 +59,60 @@ class RLBenchDemoDataset(Dataset):
         #     np.std(all_states, axis=0) + 1e-6,
         # )
 
-        live_demos = False
-        DATASET = '' if live_demos else '/home/ishika/dt_adapters/rlbench_dt/data'
-
         obs_config = ObservationConfig()
-        obs_config.set_all(True)
+        obs_config.set_all_low_dim(True)
 
         env = Environment(
-            dataset_root=DATASET,
+            dataset_root=self.config.data_dir,
             action_mode=MoveArmThenGripper(
-                arm_action_mode=JointVelocity(), gripper_action_mode=Discrete()),
-            obs_config=ObservationConfig(),
-            headless=False)
+                arm_action_mode=JointVelocity(), gripper_action_mode=Discrete()
+            ),
+            obs_config=obs_config,
+            headless=False,
+        )
         env.launch()
 
-        train_tasks = MT30_V1['train']
+        train_tasks = MT15_V1["train"]
 
-        demos=[]
-        for task in train_tasks:
-            task = env.get_task(ReachTarget)
-            demos += task.get_demos(2, live_demos=live_demos)  # -> List[List[Observation]]
+        self.trajectories = []
+        for task in train_tasks[5:]:
+            task = env.get_task(task)
+            task_demos = task.get_demos(-1, live_demos=False)
+            obs, desc = task.reset()
+            obs = env._scene.get_observation()
 
-        demos = np.array(demos).flatten()
-        
+            import ipdb
+
+            ipdb.set_trace()
+
+            for demo in task_demos:
+                obs = demo._observations
+                actions = obs.joint_velocities
+
+                # not using gripper matrix?
+                state_info = [
+                    obs.joint_positions,
+                    obs.joint_forces,
+                    obs.gripper_open,
+                    obs.gripper_pose,
+                    obs.gripper_joint_positions,
+                    obs.gripper_touch_forces,
+                    obs.task_low_dim_state,
+                ]
+
+                self.trajectories.append(
+                    {
+                        "states": states,
+                        "obj_ids": get_object_indices(env),
+                        "actions": actions,
+                        # "rewards": demo["reward"][()],
+                        "dones": dones,
+                        # "returns": discount_cumsum(demo["reward"][()], gamma=1.0),
+                        "timesteps": np.arange(len(states)),
+                        "attention_mask": np.ones(len(states)),
+                        "online": 0,
+                    }
+                )
 
     def __len__(self):
         return len(self.trajectories)
@@ -142,3 +173,9 @@ class RLBenchDemoDataset(Dataset):
         }
 
         return out
+
+
+if __name__ == "__main__":
+    config = AttrDict(data_dir="/data/anthony/dt_adapters/data/rlbench_data/mt15_v1")
+
+    dataset = RLBenchDemoDataset(config)

@@ -5,51 +5,34 @@ from models.state_vec_embedding import MWStateEmbeddingNet
 
 
 class MLPPolicy(nn.Module):
-    def __init__(
-        self,
-        state_dim,
-        act_dim,
-        hidden_size,
-        pos_hand,
-        goal_pos,
-        obs_obj_max_len,
-        num_prediction_head_layers=0,
-        emb_state_separate=False,
-        **kwargs
-    ):
+    def __init__(self, config, **kwargs):
         super().__init__()
-        self.state_dim = state_dim
-        self.act_dim = act_dim
-        self.emb_state_separate = emb_state_separate
+        self.config = config
+        self.state_dim = self.config.state_dim
+        self.act_dim = self.config.act_dim
+        self.hidden_size = self.config.hidden_size
+        self.emb_state_separate = self.config.emb_state_separate
 
         # pretrained backbone
         if self.emb_state_separate:
-            self.encoder = MWStateEmbeddingNet(
-                state_dim,
-                act_dim,
-                hidden_size,
-                pos_hand,
-                goal_pos,
-                obs_obj_max_len,
-                **kwargs
-            )
+            self.encoder = MWStateEmbeddingNet(config.state_encoder)
         else:
             import ipdb
 
             ipdb.set_trace()
             self.encoder = nn.Sequential(
-                nn.Linear(state_dim + 2, hidden_size),
-                nn.Linear(hidden_size, hidden_size),
-                nn.Linear(hidden_size, hidden_size),
+                nn.Linear(self.state_dim + 2, self.hidden_size),
+                nn.Linear(self.hidden_size, self.hidden_size),
+                nn.Linear(self.hidden_size, self.hidden_size),
             )
 
         # fine-tuneable layers
         prediction_head = []
-        for _ in range(num_prediction_head_layers):
-            prediction_head.append(nn.Linear(hidden_size, hidden_size))
+        for _ in range(self.config.num_prediction_head_layers):
+            prediction_head.append(nn.Linear(self.hidden_size, self.hidden_size))
             prediction_head.append(nn.ReLU())
 
-        prediction_head.append(nn.Linear(hidden_size, act_dim))
+        prediction_head.append(nn.Linear(self.hidden_size, self.act_dim))
 
         self.prediction_layer = nn.Sequential(*prediction_head)
 
@@ -57,12 +40,12 @@ class MLPPolicy(nn.Module):
         for param in self.encoder.parameters():
             param.requires_grad = False
 
-    def forward(self, states, actions, obj_ids, **kwargs):
+    def forward(self, states, actions, obj_ids, images=None, **kwargs):
         states = states.float()
         obj_ids = obj_ids.long()
 
         if self.emb_state_separate:
-            embedding = self.encoder(states, obj_ids)
+            embedding = self.encoder(states, obj_ids, images)
         else:
             embedding = self.encoder(states.float())
 

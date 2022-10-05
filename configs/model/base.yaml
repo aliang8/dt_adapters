@@ -1,15 +1,23 @@
 hidden_size: 768
-act_dim: 4
-pos_hand: 3
-obs_obj_max_len: 14
-gripper_distance_apart: 1
-goal_pos: 3
+
 state_dim: 39
-num_layers: 3
+act_dim: 4
+
+state_encoder:
+  hidden_size: ${model.hidden_size}
+  state_dim: ${model.state_dim}
+  act_dim: ${model.act_dim}
+  pos_hand: 3
+  obs_obj_max_len: 14
+  gripper_distance_apart: 1
+  goal_pos: 3
+  num_layers: 3
+  state_keys: ['low_level', 'image']
 
 emb_state_separate: True
-
+# num_layers: 3
 stochastic: False
 use_entropy: False
 target_entropy: False
 predict_return_dist: False
+

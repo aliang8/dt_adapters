@@ -72,7 +72,7 @@ def collect_dataset(config, envs, results_queue, wandb_run):
             continue
 
         print(env_name)
-        env = initialize_env(env_name, obj_randomization=True, hide_goal=True)
+        env = initialize_env(env_name, obj_randomization=True, hide_goal=False)
         max_path_length = env.max_path_length
         env = GymEnv(env, max_episode_length=max_path_length)
         videos = []
@@ -113,7 +113,7 @@ def handle_output(config, results_queue):
             g.create_dataset("action", data=path["actions"])
             g.create_dataset("reward", data=path["rewards"])
             g.create_dataset("done", data=path["dones"])
-            # g.create_dataset("images", data=path["env_infos"]["frames"])
+            g.create_dataset("images", data=path["env_infos"]["frames"])
         else:
             break
     hf.close()

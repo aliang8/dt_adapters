@@ -275,7 +275,7 @@ class Trainer(object):
         elif self.config.model.model_cls == "mlp_policy":
             model_cls = MLPPolicy
 
-        model = model_cls(**self.config.model)
+        model = model_cls(self.config.model)
         print("base model params: ", general_utils.count_parameters(model))
 
         if self.config.model_ckpt_dir and self.config.load_from_ckpt:
@@ -285,7 +285,7 @@ class Trainer(object):
             state_dict = torch.load(ckpt_file)
             model_config = state_dict["config"]
 
-            model = model_cls(**model_config.model)
+            model = model_cls(model_config.model)
             del state_dict["config"]
             del state_dict["epoch"]
             model.load_state_dict(state_dict, strict=True)
@@ -453,6 +453,7 @@ class Trainer(object):
         # iterate over dataset
         for batch in self.data_loader:
             start = time.time()
+            # put tensors on gpu
             batch = general_utils.to_device(batch, self.device)
             batch["returns_to_go"] = batch["returns_to_go"][:, :-1]
             batch["use_rtg_mask"] = batch["online"].reshape(-1, 1)

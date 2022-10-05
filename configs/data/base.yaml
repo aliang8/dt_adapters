@@ -4,3 +4,6 @@ act_dim: 4          # position control [x,y,z,gripper]
 max_ep_len: 500     # max number of steps allowed in MW environments
 scale: 1000         # return normalization for online fine-tuning
 hide_goal: False
+
+image_size: 64
+state_keys: ["low_level", "image"]
