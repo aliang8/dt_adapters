@@ -29,18 +29,17 @@ class DecisionTransformerSeparateState(TrajectoryModel):
         )
 
         self.hidden_size = self.config.hidden_size
-        config = transformers.GPT2Config(
+        gpt_config = transformers.GPT2Config(
             vocab_size=1,  # doesn't matter -- we don't use the vocab
-            n_embd=self.hidden_size,
-            **kwargs,
+            **self.config.gpt2,
         )
 
         # note: the only difference between this GPT2Model and the default Huggingface version
         # is that the positional embeddings are removed (since we'll add those ourselves)
-        self.transformer = TrajectoryGPT2(config)
+        self.transformer = TrajectoryGPT2(gpt_config)
 
         # state embedding
-        if self.emb_state_separate:
+        if self.config.emb_state_separate:
             self.embed_state = MWStateEmbeddingNet(self.config.state_encoder)
         else:
             self.embed_state = torch.nn.Linear(self.state_dim, self.hidden_size)
@@ -95,6 +94,7 @@ class DecisionTransformerSeparateState(TrajectoryModel):
         returns_to_go,
         obj_ids,
         timesteps,
+        img_feats=None,
         target_actions=None,
         attention_mask=None,
         use_means=False,
@@ -118,8 +118,8 @@ class DecisionTransformerSeparateState(TrajectoryModel):
         attention_mask = attention_mask.long()
         use_rtg_mask = use_rtg_mask.long()
 
-        if self.emb_state_separate:
-            state_embeddings = self.embed_state(states, obj_ids)
+        if self.config.emb_state_separate:
+            state_embeddings = self.embed_state(states, obj_ids, img_feats)
         else:
             state_embeddings = self.embed_state(states)
 

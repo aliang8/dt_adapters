@@ -85,3 +85,8 @@ class AttrDict(Dict):
         rows = [tmp_name.format(f'"{n}":', self[n]) for n in sorted(self.keys())]
         out = "\n".join(rows)
         return out
+
+
+def freeze_module(module):
+    for param in module.parameters():
+        param.requires_grad = False

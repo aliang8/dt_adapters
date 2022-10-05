@@ -8,6 +8,9 @@ from general_utils import discount_cumsum, AttrDict
 from mw_constants import OBJECTS_TO_ENV
 from mw_utils import get_object_indices
 from torchvision.transforms import transforms as T
+from transformers import CLIPProcessor, CLIPVisionModel
+
+import general_utils
 
 
 class MWDemoDataset(Dataset):
@@ -22,18 +25,26 @@ class MWDemoDataset(Dataset):
         self.train_tasks = config.train_tasks
         self.finetune_tasks = config.finetune_tasks
 
-        self.img_transforms = T.Compose(
-            [
-                T.Lambda(
-                    lambda images: torch.stack(
-                        [T.ToTensor()(image) for image in images]
-                    )
-                ),
-                T.Resize([config.image_size]),
-                T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
-                T.Lambda(lambda images: images.numpy()),
-            ]
-        )
+        # self.img_transforms = T.Compose(
+        #     [
+        #         T.Lambda(
+        #             lambda images: torch.stack(
+        #                 [T.ToTensor()(image) for image in images]
+        #             )
+        #         ),
+        #         T.Resize([config.image_size]),
+        #         T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+        #         T.Lambda(lambda images: images.numpy()),
+        #     ]
+        # )
+        if self.config.vision_backbone == "clip":
+            self.img_encoder = CLIPVisionModel.from_pretrained(
+                "openai/clip-vit-base-patch32"
+            )
+            self.img_encoder.cuda().eval()
+            self.img_preprocessor = CLIPProcessor.from_pretrained(
+                "openai/clip-vit-base-patch32"
+            )
 
         all_states = []
 
@@ -75,7 +86,32 @@ class MWDemoDataset(Dataset):
                     }
 
                     if "image" in self.config.state_keys:
-                        traj["images"] = demo["images"][()]
+                        # apply transform to images first
+                        # need to reshape into LxCxHxW
+                        images = demo["images"][()]
+                        images = images.transpose(0, 3, 1, 2)
+
+                        # get pretrained image features
+                        if self.config.vision_backbone == "clip":
+                            # for some reason clip preprocessor needs a list of images
+                            list_images = [images[i] for i in range(images.shape[0])]
+                            images = torch.stack(
+                                list(
+                                    self.img_preprocessor(
+                                        images=list_images, return_tensors="pt"
+                                    ).pixel_values
+                                )
+                            ).to("cuda")
+                            with torch.no_grad():
+                                outputs = self.img_encoder(pixel_values=images)
+                            # last_hidden_state = outputs.last_hidden_state
+                            pooled_output = outputs.pooler_output
+
+                            # store features for image from each step
+                            traj["img_feats"] = pooled_output.detach().cpu().numpy()
+
+                        elif self.config.vision_backbone == "resnet":
+                            traj["img_feats"] = self.img_preprocessor(images)
 
                     self.trajectories.append(traj)
 
@@ -146,17 +182,28 @@ class MWDemoDataset(Dataset):
         }
 
         if "image" in self.config.state_keys:
-            image_shape = traj["images"][0].shape
-            images = traj["images"][si : si + self.context_len].reshape(
-                -1, *image_shape
+            img_feats_shape = traj["img_feats"].shape[-1]
+            img_feats = traj["img_feats"][si : si + self.context_len].reshape(
+                -1, img_feats_shape
             )
-            images = self.img_transforms(images)
-            new_image_shape = images.shape
-            images = np.concatenate(
-                [np.zeros((self.context_len - tlen, *new_image_shape[1:])), images],
+            # img_feats = torch.cat(
+            #     [
+            #         torch.zeros((self.context_len - tlen, img_feats_shape)).to(
+            #             img_feats.device
+            #         ),
+            #         img_feats,
+            #     ],
+            #     dim=0,
+            # )
+            img_feats = np.concatenate(
+                [
+                    np.zeros((self.context_len - tlen, img_feats_shape)),
+                    img_feats,
+                ],
                 axis=0,
             )
-            out["images"] = images
+
+            out["img_feats"] = img_feats
 
         return out
 
@@ -173,6 +220,8 @@ if __name__ == "__main__":
         state_keys=["image"],
         hide_goal=False,
         scale=100,
+        image_size=64,
+        vision_backbone="clip",
     )
 
     dataset = MWDemoDataset(config)
