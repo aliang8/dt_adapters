@@ -1,12 +1,12 @@
 hidden_size: 768
 
-state_dim: 39
-act_dim: 4
+state_dim: ${data.state_dim}
+act_dim: ${data.act_dim}
 
 state_encoder:
   hidden_size: ${model.hidden_size}
-  state_dim: ${model.state_dim}
-  act_dim: ${model.act_dim}
+  state_dim: ${data.state_dim}
+  act_dim: ${data.act_dim}
   pos_hand: 3
   obs_obj_max_len: 14
   gripper_distance_apart: 1

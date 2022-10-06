@@ -91,9 +91,9 @@ class DecisionTransformerSeparateState(TrajectoryModel):
         self,
         states,
         actions,
-        returns_to_go,
-        obj_ids,
         timesteps,
+        returns_to_go=None,
+        obj_ids=None,
         img_feats=None,
         target_actions=None,
         attention_mask=None,
@@ -112,8 +112,12 @@ class DecisionTransformerSeparateState(TrajectoryModel):
 
         states = states.float()
         actions = actions.float()
+        if not returns_to_go:
+            returns_to_go = torch.zeros((batch_size, seq_length, 1)).to(states.device)
+
         returns_to_go = returns_to_go.float()
-        obj_ids = obj_ids.long()
+        if obj_ids:
+            obj_ids = obj_ids.long()
         timesteps = timesteps.long()
         attention_mask = attention_mask.long()
         use_rtg_mask = use_rtg_mask.long()

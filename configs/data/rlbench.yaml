@@ -1,3 +1,9 @@
+data_file: rlbench_demo_feats.hdf5
+
+env_name: rlbench
+state_dim: 30
+act_dim: 7
+
 ll_state_keys: 
   - joint_positions
   - joint_forces
@@ -20,3 +26,10 @@ image_keys:
   # - left_shoulder_depth
   # - right_shoulder_rgb
   # - right_shoulder_depth
+
+train_tasks:
+  - reach_target
+  - close_box
+
+finetune_tasks:
+  - open_box

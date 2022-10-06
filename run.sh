@@ -162,3 +162,28 @@ CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py \
     general.eval_every=1 \
     general.log_eval_videos=True \
     general.obj_randomization=True 
+
+# Pretrain RLBench
+CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py \
+    --config-name=train \
+    data=[base,rlbench] \
+    model=[base,decision_transformer] \
+    general.batch_size=64 \
+    general.num_epochs=100 \
+    general.num_steps_per_epoch=200 \
+    general.num_online_rollouts=1 \
+    data.data_dir=/data/anthony/dt_adapters/data/rlbench_data/mt15_v1 \
+    data.data_file=rlbench_demo_feats.hdf5 \
+    general.exp_name=pretrain_ml_45_images_dt \
+    general.log_to_wandb=False \
+    general.stage=pretraining \
+    general.log_outputs=False \
+    general.load_from_ckpt=False \
+    general.use_adapters=False \
+    model.stochastic=False \
+    general.eval_every=0 \
+    data.hide_goal=True \
+    data.state_keys=[image,low_level] \
+    model.state_encoder.img_feat_dim=1768 \
+    model.state_encoder.num_ll_enc_layers=6 \
+    model.hidden_size=768 
