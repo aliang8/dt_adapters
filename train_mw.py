@@ -18,8 +18,7 @@ from torch.utils.data import DataLoader
 from torch.utils.data import Dataset, Sampler, RandomSampler
 
 
-from data.mw_dataset import MWDemoDataset
-from data.rlbench_dataset import RLBenchDemoDataset
+from data.demo_dataset import DemoDataset
 from omegaconf import OmegaConf
 from models.decision_transformer import DecisionTransformerSeparateState
 from models.mlp_policy import MLPPolicy
@@ -50,7 +49,7 @@ class Trainer(object):
 
         # setup dataset
         start = time.time()
-        self.dataset = MWDemoDataset(self.config.data, stage=config.stage)
+        self.dataset = DemoDataset(self.config.data, stage=config.stage)
         print(f"took {time.time() - start} seconds to load data")
         self.setup_dataloader()
         self.setup_optimizer()
@@ -458,11 +457,14 @@ class Trainer(object):
             start = time.time()
             # put tensors on gpu
             batch = general_utils.to_device(batch, self.device)
-            batch["returns_to_go"] = batch["returns_to_go"][:, :-1]
-            batch["use_rtg_mask"] = batch["online"].reshape(-1, 1)
+            if "returns_to_go" in batch:
+                batch["returns_to_go"] = batch["returns_to_go"][:, :-1]
+                return_target = torch.clone(batch["returns_to_go"])
+
+            if "online" in batch:
+                batch["use_rtg_mask"] = batch["online"].reshape(-1, 1)
 
             action_target = torch.clone(batch["actions"])
-            return_target = torch.clone(batch["returns_to_go"])
 
             (
                 _,
@@ -484,8 +486,8 @@ class Trainer(object):
             loss_fn_inputs = {
                 "action_preds": action_preds,
                 "action_targets": action_target,
-                "return_preds": return_preds,
-                "return_targets": return_target,
+                # "return_preds": return_preds,
+                # "return_targets": return_target,
             }
 
             if self.config.model.stochastic:

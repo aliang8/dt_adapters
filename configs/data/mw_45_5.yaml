@@ -1,5 +1,7 @@
 data_file: trajectories_all_no_images_10.hdf5
 
+env_name: metaworld
+
 train_tasks:
   - assembly-v2
   - basketball-v2

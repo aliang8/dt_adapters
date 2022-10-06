@@ -1,5 +1,7 @@
 data_file: trajectories_block_only_no_images_10.hdf5    # where the trajectory data is located
 
+env_name: metaworld
+
 train_tasks:        # tasks to pretrain on
   - bin-picking-v2
   - hand-insert-v2
