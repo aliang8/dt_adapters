@@ -1,13 +1,12 @@
-context_len: 50     # number of timesteps the DT model can attend to 
-state_dim: 39       # all MW environments have the same state vector structure
-act_dim: 4          # position control [x,y,z,gripper]
-max_ep_len: 500     # max number of steps allowed in MW environments
-scale: 1000         # return normalization for online fine-tuning
-hide_goal: False
+context_len: 50                     # number of timesteps the DT model can attend to 
+state_dim: ???                      # all MW environments have the same state vector structure
+act_dim: ???                        # position control [x,y,z,gripper]
+max_ep_len: ???                     # max number of steps allowed in env
+scale: 1000                         # return normalization for online fine-tuning
 data_dir: ""
 
+# config for encoding visual information
 image_size: 64
 vision_backbone: clip
 vision_mdl_key: openai/clip-vit-base-patch32
 state_keys: ["low_level", "image"]
-load_from_file: False

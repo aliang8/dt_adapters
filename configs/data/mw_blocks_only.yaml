@@ -1,5 +1,9 @@
 data_file: trajectories_block_only_no_images_10.hdf5    # where the trajectory data is located
 
+state_dim: 39       # all MW environments have the same state vector structure
+act_dim: 4          # position control [x,y,z,gripper]
+max_ep_len: 500     # max number of steps allowed in MW
+hide_goal: False
 env_name: metaworld
 
 train_tasks:        # tasks to pretrain on

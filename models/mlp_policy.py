@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from models.state_vec_embedding import MWStateEmbeddingNet
+from models.state_embedding_net import StateEmbeddingNet
 import general_utils
 
 
@@ -15,17 +15,7 @@ class MLPPolicy(nn.Module):
         self.emb_state_separate = self.config.emb_state_separate
 
         # pretrained backbone
-        if self.emb_state_separate:
-            self.encoder = MWStateEmbeddingNet(config.state_encoder)
-        else:
-            import ipdb
-
-            ipdb.set_trace()
-            self.encoder = nn.Sequential(
-                nn.Linear(self.state_dim + 2, self.hidden_size),
-                nn.Linear(self.hidden_size, self.hidden_size),
-                nn.Linear(self.hidden_size, self.hidden_size),
-            )
+        self.encoder = StateEmbeddingNet(config.state_encoder)
 
         # fine-tuneable layers
         prediction_head = []
@@ -40,12 +30,12 @@ class MLPPolicy(nn.Module):
     def freeze_backbone(self):
         general_utils.freeze_module(self.encoder)
 
-    def forward(self, states, actions, obj_ids, img_feats=None, **kwargs):
+    def forward(self, states, actions, img_feats=None, obj_ids=None, **kwargs):
         states = states.float()
         obj_ids = obj_ids.long()
 
         if self.emb_state_separate:
-            embedding = self.encoder(states, obj_ids, img_feats)
+            embedding = self.encoder(states, img_feats, obj_ids)
         else:
             embedding = self.encoder(states.float())
 
@@ -55,9 +45,9 @@ class MLPPolicy(nn.Module):
     def reset(self):
         pass
 
-    def get_action(self, states, obj_ids, **kwargs):
+    def get_action(self, states, img_feats=None, obj_ids=None, **kwargs):
         # only take last state
         states = states[-1].reshape(1, 1, self.state_dim)
-        predictions = self.forward(states, None, obj_ids)
+        predictions = self.forward(states, None, img_feats, obj_ids)
         action_pred = predictions[1].squeeze()
         return action_pred, None, {}

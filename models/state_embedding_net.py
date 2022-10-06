@@ -8,7 +8,7 @@ from torchvision.models import resnet18, resnet50, ResNet18_Weights, ResNet50_We
 import general_utils
 
 
-class MWStateEmbeddingNet(nn.Module):
+class StateEmbeddingNet(nn.Module):
     def __init__(self, config, **kwargs):
         super().__init__()
         self.config = config
@@ -16,13 +16,16 @@ class MWStateEmbeddingNet(nn.Module):
         self.hidden_size = self.config.hidden_size
 
         # state embedding networks
-        self.combined_embed_dim = 0
-
         if "image" in self.config.state_keys:
             projection_layers = []
-            projection_layers.append(
-                nn.Linear(self.config.img_feat_dim, self.hidden_size)
-            )
+            img_feat_dim = 0
+            for k in self.config.image_keys:
+                if "rgb" in k:
+                    img_feat_dim += self.config.clip_feat_dim
+                if "depth" in k:
+                    img_feat_dim += self.config.resnet_feat_dim
+
+            projection_layers.append(nn.Linear(img_feat_dim, self.hidden_size))
 
             for _ in range(self.config.num_img_proj_layers):
                 projection_layers.append(nn.ReLU())
@@ -50,15 +53,14 @@ class MWStateEmbeddingNet(nn.Module):
 
             encoder_modules = []
             encoder_modules.append(nn.Linear(self.state_dim, self.hidden_size))
-            encoder_modules.append(nn.ReLU())
 
             for _ in range(self.config.num_ll_enc_layers):
-                encoder_modules.append(nn.Linear(self.hidden_size, self.hidden_size))
                 encoder_modules.append(nn.ReLU())
+                encoder_modules.append(nn.Linear(self.hidden_size, self.hidden_size))
 
             self.ll_state_encoder = nn.Sequential(*encoder_modules)
 
-    def forward(self, states, obj_ids, img_feats=None, **kwargs):
+    def forward(self, states, img_feats=None, obj_ids=None, **kwargs):
         # encode image observation
         batch_size, seq_length = states.shape[0], states.shape[1]
 

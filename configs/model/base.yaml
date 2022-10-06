@@ -17,6 +17,10 @@ state_encoder:
   num_img_proj_layers: 3                          # number of mlp projection layers after vision encoder
   num_ll_enc_layers: 3                            # number of mlp projection layers after ll state encoder
 
+  clip_feat_dim: 768 
+  resnet_feat_dim: 1000
+  image_keys: ${data.image_keys}
+
 emb_state_separate: True
 # num_layers: 3
 stochastic: False
