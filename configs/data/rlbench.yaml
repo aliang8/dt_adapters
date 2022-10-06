@@ -1,8 +1,10 @@
+data_dir: /data/anthony/dt_adapters/data/rlbench_data/mt15_v1
 data_file: rlbench_demo_feats.hdf5
 
 env_name: rlbench
 state_dim: 30
 act_dim: 7
+max_ep_len: 1000
 
 ll_state_keys: 
   - joint_positions
@@ -30,6 +32,18 @@ image_keys:
 train_tasks:
   - reach_target
   - close_box
+  - close_microwave
+  - plug_charger_in_power_supply
+  - toilet_seat_down
+  - take_umbrella_out_of_umbrella_stand
+  - put_umbrella_in_umbrella_stand
+  - slide_cabinet_open
+  - close_fridge
+  - pick_and_lift
 
 finetune_tasks:
   - open_box
+  - open_microwave
+  - unplug_charger
+  - toilet_seat_up
+  - open_fridge

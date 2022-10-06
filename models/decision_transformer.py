@@ -8,7 +8,7 @@ import transformers
 
 from models.model import TrajectoryModel
 from models.trajectory_gpt2 import TrajectoryGPT2
-from models.state_vec_embedding import MWStateEmbeddingNet
+from models.state_embedding_net import StateEmbeddingNet
 
 from collections import OrderedDict
 from mw_constants import OBJECTS
@@ -39,11 +39,7 @@ class DecisionTransformerSeparateState(TrajectoryModel):
         self.transformer = TrajectoryGPT2(gpt_config)
 
         # state embedding
-        if self.config.emb_state_separate:
-            self.embed_state = MWStateEmbeddingNet(self.config.state_encoder)
-        else:
-            self.embed_state = torch.nn.Linear(self.state_dim, self.hidden_size)
-
+        self.embed_state = StateEmbeddingNet(self.config.state_encoder)
         self.embed_timestep = nn.Embedding(self.config.max_ep_len, self.hidden_size)
         self.embed_return = torch.nn.Linear(1, self.hidden_size)
         self.embed_action = torch.nn.Linear(self.act_dim, self.hidden_size)
@@ -122,11 +118,7 @@ class DecisionTransformerSeparateState(TrajectoryModel):
         attention_mask = attention_mask.long()
         use_rtg_mask = use_rtg_mask.long()
 
-        if self.config.emb_state_separate:
-            state_embeddings = self.embed_state(states, obj_ids, img_feats)
-        else:
-            state_embeddings = self.embed_state(states)
-
+        state_embeddings = self.embed_state(states, img_feats, obj_ids)
         action_embeddings = self.embed_action(actions)
         returns_embeddings = self.embed_return(returns_to_go)
         time_embeddings = self.embed_timestep(timesteps)
@@ -249,12 +241,12 @@ class DecisionTransformerSeparateState(TrajectoryModel):
         self,
         states,
         actions,
-        returns_to_go,
-        obj_ids,
         timesteps,
-        use_means,
         use_rtg_mask,
-        sample_return_dist,
+        use_means=True,
+        sample_return_dist=False,
+        returns_to_go=None,
+        obj_ids=None,
         **kwargs
     ):
         # we don't care about the past rewards in this model
