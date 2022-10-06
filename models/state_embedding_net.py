@@ -18,14 +18,14 @@ class StateEmbeddingNet(nn.Module):
         # state embedding networks
         if "image" in self.config.state_keys:
             projection_layers = []
-            img_feat_dim = 0
+            self.img_feat_dim = 0
             for k in self.config.image_keys:
                 if "rgb" in k:
-                    img_feat_dim += self.config.clip_feat_dim
+                    self.img_feat_dim += self.config.clip_feat_dim
                 if "depth" in k:
-                    img_feat_dim += self.config.resnet_feat_dim
+                    self.img_feat_dim += self.config.resnet_feat_dim
 
-            projection_layers.append(nn.Linear(img_feat_dim, self.hidden_size))
+            projection_layers.append(nn.Linear(self.img_feat_dim, self.hidden_size))
 
             for _ in range(self.config.num_img_proj_layers):
                 projection_layers.append(nn.ReLU())

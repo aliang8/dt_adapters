@@ -164,7 +164,7 @@ CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py \
     general.obj_randomization=True 
 
 # Pretrain RLBench
-CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py \
+CUDA_VISIBLE_DEVICES=1 DISPLAY=:0 python3 train_mw.py \
     --config-name=train \
     data=[base,rlbench] \
     model=[base,decision_transformer] \
@@ -183,6 +183,24 @@ CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py \
     model.stochastic=False \
     general.eval_every=0 \
     data.state_keys=[image,low_level] \
-    model.state_encoder.img_feat_dim=1768 \
     model.state_encoder.num_ll_enc_layers=6 \
     model.hidden_size=768 
+
+# Finetune RLBench
+CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py \
+    --config-name=offline_finetune \
+    data=[base,rlbench] \
+    model=[base,decision_transformer] \
+    general.batch_size=128 \
+    general.num_epochs=100 \
+    general.num_steps_per_epoch=200 \
+    general.num_online_rollouts=1 \
+    general.exp_name=offline_finetune_rlb \
+    general.log_to_wandb=False \
+    general.stage=finetuning \
+    general.log_outputs=False \
+    general.model_ckpt_dir=/data/anthony/dt_adapters/outputs/pretrain_rlbench_images_dt_v2/exp-627300 \
+    general.use_adapters=True \
+    general.eval_every=1 \
+    general.env_name=rlbench \
+    general.task=ReachTarget
