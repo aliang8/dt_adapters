@@ -1,6 +1,6 @@
 hidden_size: 768
 max_length: ${data.context_len}
-max_ep_len: 500
+max_ep_len: 1000
 component_hidden_size: 256
 action_tanh: True
 

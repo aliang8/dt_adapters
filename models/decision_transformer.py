@@ -108,12 +108,13 @@ class DecisionTransformerSeparateState(TrajectoryModel):
 
         states = states.float()
         actions = actions.float()
-        if not returns_to_go:
+        if returns_to_go is None:
             returns_to_go = torch.zeros((batch_size, seq_length, 1)).to(states.device)
 
         returns_to_go = returns_to_go.float()
-        if obj_ids:
+        if obj_ids is not None:
             obj_ids = obj_ids.long()
+
         timesteps = timesteps.long()
         attention_mask = attention_mask.long()
         use_rtg_mask = use_rtg_mask.long()
@@ -243,6 +244,7 @@ class DecisionTransformerSeparateState(TrajectoryModel):
         actions,
         timesteps,
         use_rtg_mask,
+        img_feats=None,
         use_means=True,
         sample_return_dist=False,
         returns_to_go=None,
@@ -252,7 +254,12 @@ class DecisionTransformerSeparateState(TrajectoryModel):
         # we don't care about the past rewards in this model
         states = states.reshape(1, -1, self.state_dim)
         actions = actions.reshape(1, -1, self.act_dim)
-        returns_to_go = returns_to_go.reshape(1, -1, 1)
+
+        if not returns_to_go:
+            returns_to_go = torch.zeros(1, states.shape[1], 1).to(states.device)
+        else:
+            returns_to_go = returns_to_go.reshape(1, -1, 1)
+
         timesteps = timesteps.reshape(1, -1)
 
         if self.max_length is not None:
@@ -326,12 +333,33 @@ class DecisionTransformerSeparateState(TrajectoryModel):
         else:
             attention_mask = None
 
+        if img_feats is not None:
+            img_feats = img_feats.reshape(1, -1, img_feats.shape[-1])
+
+            if self.max_length is not None:
+                img_feats = img_feats[:, -self.max_length :]
+                img_feats = torch.cat(
+                    [
+                        torch.zeros(
+                            (
+                                img_feats.shape[0],
+                                self.max_length - img_feats.shape[1],
+                                img_feats.shape[-1],
+                            ),
+                            device=img_feats.device,
+                        ),
+                        img_feats,
+                    ],
+                    dim=1,
+                ).to(dtype=torch.float32)
+
         _, action_preds, return_preds, _, _ = self.forward(
-            states,
-            actions,
-            returns_to_go,
-            obj_ids,
-            timesteps,
+            states=states,
+            actions=actions,
+            timesteps=timesteps,
+            img_feats=img_feats,
+            returns_to_go=returns_to_go,
+            obj_ids=obj_ids,
             target_actions=None,
             attention_mask=attention_mask,
             use_means=use_means,  # use mean action during evaluation

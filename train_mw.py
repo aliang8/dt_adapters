@@ -3,6 +3,7 @@ import json
 import time
 import os
 import sys
+import importlib
 import wandb
 import random
 import torch
@@ -32,6 +33,22 @@ import eval_utils
 from garage.envs import GymEnv
 from garage.np import discount_cumsum, stack_tensor_dict_list
 
+from data.process_rlbench_data import (
+    preprocess_obs,
+    extract_image_feats,
+    get_visual_encoders,
+)
+
+# RLbench imports
+from rlbench.action_modes.action_mode import MoveArmThenGripper
+from rlbench.action_modes.arm_action_modes import JointVelocity
+from rlbench.action_modes.gripper_action_modes import Discrete
+from rlbench.environment import Environment
+from rlbench.observation_config import ObservationConfig
+from rlbench.tasks import *
+
+from transformers import CLIPProcessor, CLIPVisionModel
+
 
 def set_all_seeds(seed):
     np.random.seed(seed)
@@ -53,7 +70,7 @@ class Trainer(object):
         print(f"took {time.time() - start} seconds to load data")
         self.setup_dataloader()
         self.setup_optimizer()
-        self.setup_env(self.config.env_name)
+        self.setup_env(env_name=self.config.env_name, task=self.config.task)
         self.total_training_iters = 0
         self.total_online_rollouts = 0
 
@@ -105,7 +122,7 @@ class Trainer(object):
 
         self.loss_fn = loss_fn
 
-    def rollout(self, use_means=False, attend_to_rtg=False, log_eval_videos=False):
+    def rollout_gym(self, use_means=False, attend_to_rtg=False, log_eval_videos=False):
         """Sample a single episode of the agent in the environment."""
         env_steps = []
         agent_infos = []
@@ -212,23 +229,194 @@ class Trainer(object):
             dones=np.array([es.terminal for es in env_steps]),
         )
 
-    def setup_env(self, env_name):
-        # create env for online training
-        if self.config.env_name:
-            print(
-                f"initializing metaworld env: {env_name}, obj_random: {self.config.obj_randomization}"
+    def rollout_bench(
+        self, use_means=False, attend_to_rtg=False, log_eval_videos=False
+    ):
+
+        start = time.time()
+        env_steps = []
+        agent_infos = []
+        observations = []
+        episode_infos = []
+        images = []
+        description, last_obs = self.task_env.reset()
+
+        state_mean = torch.from_numpy(self.dataset.state_mean).to(device=self.device)
+        state_std = torch.from_numpy(self.dataset.state_std).to(device=self.device)
+        state_dim = self.model.state_dim
+        act_dim = self.model.act_dim
+
+        _, ll_state, img_obs = preprocess_obs(self.config.data, last_obs)
+
+        # add batch dimension
+        for k, _ in img_obs.items():
+            img_obs[k] = img_obs[k][np.newaxis]
+
+        img_feats = extract_image_feats(
+            img_obs,
+            self.img_preprocessor,
+            self.img_encoder,
+            self.depth_img_preprocessor,
+            self.depth_img_encoder,
+        )
+
+        images.append(img_obs["overhead_rgb"])
+
+        self.model.reset()
+
+        last_obs, last_img_feats = ll_state, img_feats
+
+        states = (
+            torch.from_numpy(last_obs)
+            .reshape(1, state_dim)
+            .to(device=self.device, dtype=torch.float32)
+        )
+        img_feats = (
+            torch.from_numpy(last_img_feats)
+            .reshape(1, -1)
+            .to(self.device, dtype=torch.float32)
+        )
+        actions = torch.zeros((0, act_dim), device=self.device, dtype=torch.float32)
+        rewards = torch.zeros(0, device=self.device, dtype=torch.float32)
+        use_rtg_mask = torch.tensor([attend_to_rtg]).reshape(1, 1).to(self.device)
+
+        # target_return = torch.tensor(
+        #     self.config.target_return / self.config.scale,
+        #     device=self.device,
+        #     dtype=torch.float32,
+        # ).reshape(1, 1)
+
+        timesteps = torch.tensor(0, device=self.device, dtype=torch.long).reshape(1, 1)
+        episode_length = 0
+
+        while episode_length < (self.config.data.max_ep_len or np.inf):
+            # add padding
+            actions = torch.cat(
+                [actions, torch.zeros((1, act_dim), device=self.device)], dim=0
             )
-            env = mw_utils.initialize_env(env_name, self.config.obj_randomization)
-            max_path_length = env.max_path_length
-            self.env = GymEnv(env, max_episode_length=max_path_length)
+            rewards = torch.cat([rewards, torch.zeros(1, device=self.device)])
+
+            action, return_target, agent_info = self.model.get_action(
+                states=(states.to(dtype=torch.float32) - state_mean) / state_std,
+                actions=actions.to(dtype=torch.float32),
+                returns_to_go=None,
+                obj_ids=None,
+                img_feats=img_feats.to(dtype=torch.float32),
+                timesteps=timesteps.to(dtype=torch.long),
+                use_means=use_means,
+                use_rtg_mask=use_rtg_mask,
+                sample_return_dist=self.config.model.predict_return_dist,
+            )
+            actions[-1] = action
+            action = action.detach().cpu().numpy()
+
+            obs, reward, terminate = self.task_env.step(action)
+
+            # env_steps.append(es)
+            _, ll_state, img_obs = preprocess_obs(self.config.data, obs)
+
+            # add batch dimension
+            for k, _ in img_obs.items():
+                img_obs[k] = img_obs[k][np.newaxis]
+
+            last_img_feats = extract_image_feats(
+                img_obs,
+                self.img_preprocessor,
+                self.img_encoder,
+                self.depth_img_preprocessor,
+                self.depth_img_encoder,
+            )
+            images.append(img_obs["overhead_rgb"])
+
+            last_obs = ll_state
+            observations.append(last_obs)
+            agent_infos.append(agent_info)
+
+            episode_length += 1
+            if terminate:
+                break
+
+            timesteps = torch.cat(
+                [
+                    timesteps,
+                    torch.ones((1, 1), device=self.device, dtype=torch.long)
+                    * episode_length,
+                ],
+                dim=1,
+            )
+            cur_state = (
+                torch.from_numpy(last_obs).to(device=self.device).reshape(1, state_dim)
+            )
+            cur_img_feats = (
+                torch.from_numpy(last_img_feats).to(device=self.device).reshape(1, -1)
+            )
+            states = torch.cat([states, cur_state], dim=0)
+            img_feats = torch.cat([img_feats, cur_img_feats], dim=0)
+            # if self.config.model.predict_return_dist:
+            #     # use the model's prediction of the return to go
+            #     # follow this paper: https://openreview.net/forum?id=fwJWhOxuzV9
+            #     target_return = torch.cat(
+            #         [target_return, return_target.reshape(1, 1)], dim=1
+            #     )
+            # else:
+            #     pred_return = target_return[0, -1] - (es.reward / self.config.scale)
+            #     target_return = torch.cat(
+            #         [target_return, pred_return.reshape(1, 1)], dim=1
+            #     )
+
+            rewards[-1] = reward
+
+        # rewards = np.array([es.reward for es in env_steps])
+        rewards = rewards.cpu().numpy()
+        returns = general_utils.discount_cumsum(rewards, gamma=1.0)
+        images = np.concatenate(images)
+
+        rollout_time = time.time() - start
+        print(f"rollout time: {rollout_time}")
+
+        return dict(
+            episode_infos=episode_infos,
+            observations=np.array(observations),
+            actions=np.array([es.action for es in env_steps]),
+            rewards=rewards,
+            returns_to_go=returns,
+            agent_infos=stack_tensor_dict_list(agent_infos),
+            # env_infos=stack_tensor_dict_list([es.env_info for es in env_steps]),
+            env_infos=general_utils.AttrDict(frames=images),
+            dones=np.array([es.terminal for es in env_steps]),
+        )
+
+    def setup_env(self, env_name=None, task=None):
+        # create env for online training
+        if self.config.stage == "finetuning" and task is not None:
+            print(
+                f"initializing metaworld env: {env_name}, task: {task}, obj_random: {self.config.obj_randomization}"
+            )
+            if env_name == "metaworld":
+                env = mw_utils.initialize_env(env_name, self.config.obj_randomization)
+                max_path_length = env.max_path_length
+                self.env = GymEnv(env, max_episode_length=max_path_length)
+                self.obj_ids = mw_utils.get_object_indices(self.config.env_name)
+                self.obj_ids = (
+                    torch.tensor(self.obj_ids).long().to(self.device).unsqueeze(0)
+                )
+            elif env_name == "rlbench":
+                obs_config = ObservationConfig()
+                obs_config.set_all(True)
+                action_mode = MoveArmThenGripper(
+                    arm_action_mode=JointVelocity(), gripper_action_mode=Discrete()
+                )
+                self.env = Environment(
+                    action_mode=action_mode, obs_config=obs_config, headless=False
+                )
+                self.env.launch()
+
+                # task_module = importlib.import_module(task)
+                task_module = globals()[task]
+                self.task_env = self.env.get_task(task_module)
 
             if not self.config.train_on_offline_data:  # clear out dataset buffer
                 self.dataset.trajectories = []
-
-            self.obj_ids = mw_utils.get_object_indices(self.config.env_name)
-            self.obj_ids = (
-                torch.tensor(self.obj_ids).long().to(self.device).unsqueeze(0)
-            )
 
         else:
             self.config.num_online_rollouts = 1
@@ -317,6 +505,14 @@ class Trainer(object):
         print(self.model)
         print("final model params: ", general_utils.count_parameters(model))
 
+        # load ll_state and image encoding networks
+        (
+            self.img_preprocessor,
+            self.img_encoder,
+            self.depth_img_preprocessor,
+            self.depth_img_encoder,
+        ) = get_visual_encoders(self.config.data.image_size, "cuda")
+
     def setup_dataloader(self):
         if self.config.online_training:
             # create batch sampler to rerank trajectories based on length during training
@@ -394,11 +590,16 @@ class Trainer(object):
         attend_to_rtg = True if self.config.online_training else False
         for _ in range(self.config.num_eval_rollouts):
             with torch.no_grad():
-                path = self.rollout(
+                rollout_kwargs = dict(
                     use_means=True,
                     attend_to_rtg=attend_to_rtg,
                     log_eval_videos=log_eval_videos,
                 )
+                if self.config.env_name == "metaworld":
+                    path = self.rollout_gym(**rollout_kwargs)
+                elif self.config.env_name == "rlbench":
+                    path = self.rollout_bench(**rollout_kwargs)
+
                 eval_rollouts.append(path)
 
         # compute metrics and log

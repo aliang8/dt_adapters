@@ -3,7 +3,7 @@ data_file: rlbench_demo_feats.hdf5
 
 env_name: rlbench
 state_dim: 30
-act_dim: 7
+act_dim: 8
 max_ep_len: 1000
 
 ll_state_keys: 
