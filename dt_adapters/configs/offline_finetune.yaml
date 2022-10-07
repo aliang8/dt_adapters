@@ -1,0 +1,21 @@
+defaults:
+  - model: 
+    - base
+    - decision_transformer
+  - data: 
+    - base 
+    - mw_blocks_only
+  - general: base
+
+general:
+  online_training: False
+  model_ckpt_dir: /data/anthony/dt_adapters/outputs/
+  load_from_ckpt: True
+  env_name: ${data.finetune_tasks[0]}
+  num_eval_rollouts: 10
+  train_on_offline_data: True
+  obj_randomization: False
+
+  use_adapters: True  
+  stage: finetuning
+  num_processes: 2
