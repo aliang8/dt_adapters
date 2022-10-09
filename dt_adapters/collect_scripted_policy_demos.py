@@ -21,7 +21,7 @@ from dt_adapters.mw_utils import (
 )
 from dt_adapters.mw_constants import OBJECTS_TO_ENV
 from dt_adapters.general_utils import split
-from dt_adapters.data.process_rlbench_data import (
+from dt_adapters.data.utils import (
     get_visual_encoders,
     extract_image_feats,
 )

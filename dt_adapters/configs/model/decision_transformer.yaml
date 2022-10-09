@@ -1,25 +1,24 @@
-hidden_size: 768
-max_length: ${data.context_len}
-max_ep_len: 1000
-component_hidden_size: 256
-action_tanh: True
+model_cls: decision_transformer
 
-log_std_min: -20
+max_length: ${data.context_len}
+max_ep_len: 1000                                      # maximum rollout length
+component_hidden_size: 256        
+action_tanh: True                                     # apply tanh to the action prediction
+log_std_min: -20                                      # bound the std prediction for stochastic action
 log_std_max: 2
-remove_pos_embs: False
-stochastic_tanh: False
+remove_pos_embs: False                                # don't add positional encoding to input
+stochastic_tanh: False                                # apply tanh transform on action prediction
 approximate_entropy_samples: 1000
 
-# for predicting returns
+# for predicting returns (implementation not done)
 predict_return_dist: False
 max_return: 500
 bin_width: 5
 num_return_samples: 250
 
-model_cls: decision_transformer
-
+# configuration for the backbone model
 gpt2:
-  n_layer: 4
-  n_head: 4
-  dropout: 0.1
+  n_layer: 4                                          # number of transformer layers
+  n_head: 4                                           # number of MHA 
+  dropout: 0.1                                        #
   n_embd: ${model.hidden_size}

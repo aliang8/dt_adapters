@@ -1,13 +1,20 @@
 data_dir: /data/anthony/dt_adapters/data
-data_file: trajectories_block_only_no_images_10.hdf5    # where the trajectory data is located
+data_file: trajectories_block_only_no_images_10.hdf5
 
-state_dim: 39       # all MW environments have the same state vector structure
-act_dim: 4          # position control [x,y,z,gripper]
-max_ep_len: 500     # max number of steps allowed in MW
-hide_goal: False
-env_name: metaworld
+env_name: metaworld                 
 
-train_tasks:        # tasks to pretrain on
+state_dim: 39                                     # all MW environments have the same state vector structure
+act_dim: 4                                        # position control [x,y,z,gripper]
+max_ep_len: 500                                   # max number of steps allowed in MW
+hide_goal: False                                  # the last three values in state correspond to goal position, mask this during pretraining
+
+task: ???                                         
+obj_randomization: False                          # randomize object position every episode
+
+image_keys: 
+  - rgb
+
+train_tasks:                                      # tasks to pretrain on
   - bin-picking-v2
   - hand-insert-v2
   - pick-out-of-hole-v2
@@ -19,9 +26,6 @@ train_tasks:        # tasks to pretrain on
   - sweep-v2
   - pick-place-wall-v2
   
-finetune_tasks:     # tasks to offline fine-tune on
-  # - pick-place-v2
-  # - pick-place-wall-v2
-
-image_keys: 
-  - rgb
+finetune_tasks:                                    # tasks to offline fine-tune on
+  - pick-place-v2
+  - pick-place-wall-v2

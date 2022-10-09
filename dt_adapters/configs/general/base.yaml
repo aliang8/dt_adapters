@@ -7,49 +7,37 @@ eval_every: 1                                       # epochs between evaluating 
 num_steps_per_epoch: 200                            # number of gradient updates per online rollout
 skip_first_eval: True                               # skip first evalution step
 num_epochs: 100                                     # number of training epochs
-batch_size: 128                                    
+batch_size: 128                                   
 
-lr: 1e-4
+lr: 1e-4                                            
 weight_decay: 1e-4
 alpha_lr: 1e-4                                      # learning rate for auto-tuning alpha
 alpha_weight_decay: 1e-4                
 warmup_steps: 10000                                 # warmup steps for scheduler
+num_data_workers: 1                                 # for data loading
 
 # logging
-exp_name: test                        
-log_to_wandb: False
-log_outputs: True
+exp_name: test                                      # exp name, used for folder path and wandb group name
+log_to_wandb: False                                 # should we log the metrics to wandb
+log_outputs: True                                   # should we create a new folder and store exp output
 
 # video configs
-log_eval_videos: True
-log_eval_videos_every: 10
-fps: 20
-image_height: 128
+log_eval_videos: True                               # should we videos of eval rollouts
+log_eval_videos_every: 10                           # number of epochs between every video save
+fps: 20           
+image_height: 128                                   # resizing videos to fixed dimension for wandb logging
 image_width: 128
 
 # online_finetuning
-online_training: False
-model_ckpt_dir: /data/anthony/dt_adapters/outputs/
-# model_ckpt_dir: 
-load_from_ckpt: False
+online_training: False                              # for online finetune  
+num_online_rollouts: 1                              # number of online rollouts per epoch
+train_on_offline_data: True                         # should we continue training on offline data during online fine-tuning
+num_warmup_rollouts: 10                             # collect some initial trajectories to populate replay buffer
+target_return: 500                                  # conditioning RTG for inference
 
-obj_randomization: False
-hide_goal: False
-freeze_backbone: False
+load_from_ckpt: False                               # load pretrained model weights 
+freeze_backbone: False                              # freeze part of the pretrained model weights 
 
-num_online_rollouts: 1
-num_eval_rollouts: 10
-train_on_offline_data: True
-num_warmup_rollouts: 10
-target_return: 500
-scale: 100
-
-num_data_workers: 1
-num_processes: 5
-
-use_adapters: False
-adapter_task_name: ${data.task}                            # this should be the task name
-adapter:
-  config: pfeiffer+inv
-  nonlinearity: none 
-  reduction_factor: none
+# eval parameters
+num_eval_rollouts: 10                               # number of rollouts per evaluation step
+num_processes: 5                                    # number of processes for collecting eval rollouts

@@ -40,7 +40,7 @@ from dt_adapters.sampler import ImportanceWeightBatchSampler
 import dt_adapters.general_utils as general_utils
 import dt_adapters.mw_utils as mw_utils
 import dt_adapters.eval_utils as eval_utils
-from dt_adapters.data.process_rlbench_data import get_visual_encoders
+from dt_adapters.data.utils import get_visual_encoders
 from dt_adapters.rollout import rollout
 
 
@@ -56,6 +56,10 @@ def set_all_seeds(seed):
 
 
 class Trainer(object):
+    """
+    Trainer class
+    """
+
     def __init__(self, config):
         set_all_seeds(config.seed)
         self.config = config
@@ -124,6 +128,9 @@ class Trainer(object):
         self.loss_fn = loss_fn
 
     def warmup_data_collection(self):
+        """
+        Collect online rollouts for bootstrapping the replay buffer.
+        """
         print("collecting warmup trajectories to fill replay buffer...")
         start = time.time()
         for _ in tqdm(range(self.config.num_warmup_rollouts)):

@@ -1,6 +1,70 @@
 import torch
 import numpy as np
 
+from transformers import CLIPProcessor, CLIPVisionModel
+from torchvision.transforms import transforms as T
+from torchvision.models import resnet18, resnet50, ResNet18_Weights, ResNet50_Weights
+
+
+def preprocess_obs(config, obs):
+    action = np.concatenate([obs.joint_velocities, np.array([obs.gripper_open])])
+
+    ll_state_info = [
+        np.array(getattr(obs, k)).reshape(-1) for k in config.ll_state_keys
+    ]
+    ll_state = np.concatenate(ll_state_info)
+
+    image_state = {k: getattr(obs, k) for k in config.image_keys}
+    return action, ll_state, image_state
+
+
+def extract_image_feats(
+    img_obs, img_preprocessor, img_encoder, depth_img_preprocessor, depth_img_encoder
+):
+    all_img_feats = []
+    for k, imgs in img_obs.items():
+        if "rgb" in k:
+            img_feat = get_image_feats(
+                np.array(imgs),
+                img_preprocessor,
+                img_encoder,
+                "clip",
+            )
+        if "depth" in k:
+            img_feat = get_image_feats(
+                np.array(imgs),
+                depth_img_preprocessor,
+                depth_img_encoder,
+                "resnet",
+            )
+        all_img_feats.append(img_feat)
+    all_img_feats = np.concatenate(all_img_feats, axis=-1)
+    return all_img_feats
+
+
+def get_visual_encoders(image_size, device):
+    img_encoder = CLIPVisionModel.from_pretrained("openai/clip-vit-base-patch32")
+    img_encoder.to(device).eval()
+    img_preprocessor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
+
+    # for processing depth images
+    # self.depth_img_preprocessor = weights.transforms()
+    img_transforms = T.Compose(
+        [
+            T.Lambda(
+                lambda images: torch.stack([T.ToTensor()(image) for image in images])
+            ),
+            T.Resize([image_size]),
+            # T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+            T.Lambda(lambda images: images.numpy()),
+        ]
+    )
+    depth_img_preprocessor = img_transforms
+    weights = ResNet50_Weights.DEFAULT
+    depth_img_encoder = resnet50(weights=weights)
+    depth_img_encoder.to(device).eval()
+    return img_preprocessor, img_encoder, depth_img_preprocessor, depth_img_encoder
+
 
 def get_image_feats(images, img_preprocessor, img_encoder, vision_backbone="clip"):
     # assume images is a numpy array of LxHxWxC
