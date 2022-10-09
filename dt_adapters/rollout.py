@@ -32,7 +32,6 @@ def rollout(
     use_means=False,
     attend_to_rtg=False,
     log_eval_videos=False,
-    results_queue=None,
 ):
     observation_mode = "image" if "image" in config.data.state_keys else "state"
     if config.data.env_name == "metaworld":
@@ -255,7 +254,4 @@ def rollout(
         traj_success=traj_success,
     )
     env.close()
-
-    if results_queue:
-        results_queue.put(out)
     return out

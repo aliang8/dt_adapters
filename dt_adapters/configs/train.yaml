@@ -13,4 +13,3 @@ general:
   train_on_offline_data: True
   use_adapters: False
   stage: pretraining
-  mode: train

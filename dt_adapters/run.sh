@@ -35,26 +35,27 @@ CUDA_VISIBLE_DEVICES=3 DISPLAY=:0 python3 -m dt_adapters.trainer \
 
 # MLP fine-tune prediction head on some downstream task
 # change freeze_backbone if want to fine-tune the entire model
-CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py \
+CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 -m dt_adapters.trainer \
     --config-name=offline_finetune \
     data=[base,mw_45_5] \
     model=[base,mlp_policy] \
     general.exp_name=mlp_ml45_hand_insert_adapter \
-    general.log_to_wandb=True \
-    general.log_outputs=True \
+    general.log_to_wandb=False \
+    general.log_outputs=False \
     general.load_from_ckpt=True \
     general.model_ckpt_dir=/path/to/model/ckpt \
     general.eval_every=1 \
     general.obj_randomization=True \
     general.freeze_backbone=True \
-    data.finetune_tasks=["hand-insert-v2"] \
-
+    model.use_adapters=False \
+    data.task=hand-insert-v2 \
+    
 # ========================================
 # Decision Transformer policy experiments
 # ========================================
 
 # Pretrain DT on Metaworld
-CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py \
+CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 -m dt_adapters.trainer \
     --config-name=train \
     data=[base,mw_45_5] \
     model=[base,decision_transformer] \
@@ -66,7 +67,7 @@ CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py \
     model.state_encoder.num_ll_enc_layers=6 
 
 # Train DT with adapters on some downstream task
-CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py \
+CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 -m dt_adapters.trainer \
     --config-name=offline_finetune \
     data=[base,mw_45_5] \
     model=[base,decision_transformer] \
@@ -79,7 +80,7 @@ CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py \
     data.finetune_tasks=["bin-picking-v2"]
 
 # Fine-tune full model on downstream task data
-CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py \
+CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 -m dt_adapters.trainer \
     --config-name=offline_finetune \
     data=[base,mw_45_5] \
     model=[base,decision_transformer] \
@@ -93,7 +94,7 @@ CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py \
     data.finetune_tasks=["bin-picking-v2"]
 
 # Pretrain DT on RLBench
-CUDA_VISIBLE_DEVICES=1 DISPLAY=:0 python3 dt_adapters/trainer.py \
+CUDA_VISIBLE_DEVICES=1 DISPLAY=:0 python3 -m dt_adapters.trainer \
     --config-name=train \
     data=[base,rlbench] \
     model=[base,decision_transformer] \
