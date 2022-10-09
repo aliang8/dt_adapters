@@ -14,29 +14,30 @@ import numpy as np
 from pprint import pprint
 from tqdm import tqdm
 from collections import OrderedDict
+from omegaconf import OmegaConf
+import multiprocessing as mp
+from functools import partial
+
 
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset, Sampler, RandomSampler
 
 
-from data.demo_dataset import DemoDataset
-from omegaconf import OmegaConf
-from models.decision_transformer import DecisionTransformerSeparateState
-from models.mlp_policy import MLPPolicy
-from sampler import ImportanceWeightBatchSampler
+from dt_adapters.data.demo_dataset import DemoDataset
+from dt_adapters.models.decision_transformer import DecisionTransformerSeparateState
+from dt_adapters.models.mlp_policy import MLPPolicy
+from dt_adapters.sampler import ImportanceWeightBatchSampler
+import dt_adapters.general_utils as general_utils
+import dt_adapters.mw_utils as mw_utils
+import dt_adapters.eval_utils as eval_utils
+from dt_adapters.data.process_rlbench_data import get_visual_encoders
+from dt_adapters.rollout import rollout
+
 
 from transformers.adapters.configuration import AdapterConfig
 
-import general_utils
-import mw_utils
-import eval_utils
 from garage.envs import GymEnv
 from garage.np import discount_cumsum, stack_tensor_dict_list
-from data.process_rlbench_data import get_visual_encoders
-
-from eval import rollout
-import multiprocessing as mp
-from functools import partial
 
 
 def set_all_seeds(seed):

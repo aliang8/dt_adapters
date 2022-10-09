@@ -10,14 +10,14 @@ import collections
 from pprint import pprint
 from collections import defaultdict as dd
 
-import general_utils
-
 import gym
-import dt_adapters.envs.rlbench_env
 
-from data.process_rlbench_data import extract_image_feats
 from torchvision.transforms import transforms as T
 from transformers import CLIPProcessor, CLIPVisionModel
+
+import dt_adapters.envs.rlbench_env
+import dt_adapters.general_utils as general_utils
+from dt_adapters.data.process_rlbench_data import extract_image_feats
 
 
 def rollout(

@@ -47,7 +47,7 @@ CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 pytorch_sac/eval_garage.py demos_per_e
 
 # Collect demos using scripted policies
 # TODO: add argparsing here
-CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 collect_scripted_policy_demos.py \
+CUDA_VISIBLE_DEVICES=1 DISPLAY=:1 python3 dt_adapters/collect_scripted_policy_demos.py \
     --config-name=data_collection
 ```
 
@@ -108,8 +108,8 @@ First follow the steps at https://github.com/stepjam/RLBench to install RLBench 
 DISPLAY=:0.1 python3 dt_adapters/data/dataset_generator.py \
     --save_path=/data/anthony/dt_adapters/data/rlbench_data/mt15_v1_50 \
     --tasks=[] \
-    --processes=50 \
-    --episodes_per_task=10 \
+    --processes=20 \
+    --episodes_per_task=50 \
     --variations=2
 ```
 

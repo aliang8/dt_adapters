@@ -71,10 +71,7 @@ class DemoDataset(BaseDataset):
                 num_demos = len(f[task].keys())
 
                 for k, demo in f[task].items():
-                    if "states" in demo:
-                        states = demo["states"][()]
-                    elif "obs" in demo:
-                        states = demo["obs"][()]
+                    states = demo["states"][()]
 
                     if self.config.env_name == "metaworld" and self.config.hide_goal:
                         states[:, -3:] = 0
@@ -94,10 +91,10 @@ class DemoDataset(BaseDataset):
                         traj.update(
                             {
                                 "obj_ids": get_object_indices(task),
-                                "rewards": demo["reward"][()],
-                                "dones": demo["done"][()],
+                                "rewards": demo["rewards"][()],
+                                "dones": demo["dones"][()],
                                 "returns_to_go": general_utils.discount_cumsum(
-                                    demo["reward"][()], gamma=1.0
+                                    demo["rewards"][()], gamma=1.0
                                 ),
                             }
                         )

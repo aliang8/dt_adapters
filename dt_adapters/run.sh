@@ -31,26 +31,19 @@ CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 zero_shot_dt_eval.py \
 # =============================
 
 # Pretraining
-CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py \
+CUDA_VISIBLE_DEVICES=1 DISPLAY=:0 python3 -m dt_adapters.trainer \
     --config-name=train \
     data=[base,mw_45_5] \
     model=[base,mlp_policy] \
-    general.batch_size=64 \
-    general.num_epochs=100 \
-    general.num_steps_per_epoch=200 \
-    general.num_online_rollouts=1 \
-    data.data_file=trajectories_all_with_images_10.hdf5 \
-    general.exp_name=pretrain_ml_45_images_mlp_policy \
-    general.log_to_wandb=True \
-    general.stage=pretraining \
-    general.log_outputs=True \
-    general.load_from_ckpt=False \
-    general.use_adapters=False \
+    general.exp_name=pretrain_ml45_images_mlp_ll_state \
+    general.log_to_wandb=False \
+    general.log_outputs=False \
     general.eval_every=0 \
     data.hide_goal=True \
     model.state_encoder.num_ll_enc_layers=6 \
     model.num_prediction_head_layers=4 \
-    model.hidden_size=256
+    model.hidden_size=256 \
+    data.state_keys=low_level
 
 
 # MLP fine-tune

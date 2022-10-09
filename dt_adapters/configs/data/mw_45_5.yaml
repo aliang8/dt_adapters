@@ -1,4 +1,5 @@
-data_file: trajectories_all_no_images_10.hdf5
+data_dir: /data/anthony/dt_adapters/data/
+data_file: trajectories_all_with_images_10.hdf5
 
 state_dim: 39       # all MW environments have the same state vector structure
 act_dim: 4          # position control [x,y,z,gripper]
@@ -62,3 +63,6 @@ finetune_tasks:
   - hand-insert-v2
   - door-lock-v2
   - door-unlock-v2
+
+image_keys: 
+  - rgb

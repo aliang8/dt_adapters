@@ -13,18 +13,18 @@ import hydra
 import random
 from omegaconf import OmegaConf
 import numpy as np
-from general_utils import discount_cumsum
 from collections import defaultdict as dd
 
-from data.base_dataset import BaseDataset
 from rlbench.action_modes.action_mode import MoveArmThenGripper
 from rlbench.action_modes.arm_action_modes import JointVelocity
 from rlbench.action_modes.gripper_action_modes import Discrete
 from rlbench.environment import Environment
 from rlbench.observation_config import ObservationConfig
 from rlbench.tasks import *
-from general_utils import AttrDict
-from data.utils import get_image_feats
+
+from dt_adapters.data.base_dataset import BaseDataset
+from dt_adapters.general_utils import AttrDict, discount_cumsum
+from dt_adapters.data.utils import get_image_feats
 
 from transformers import CLIPProcessor, CLIPVisionModel
 
