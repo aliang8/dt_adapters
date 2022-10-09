@@ -235,7 +235,7 @@ class Trainer(object):
         )
         wandb.log(
             {
-                f"eval/{self.config.env_name}/{key}/videos": wandb.Video(
+                f"eval/{self.config.data.task}/{key}/videos": wandb.Video(
                     video_array,
                     caption=f"train_iter_{self.total_training_iters}",
                     fps=self.config.fps,
