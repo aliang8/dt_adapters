@@ -41,3 +41,5 @@ freeze_backbone: False                              # freeze part of the pretrai
 # eval parameters
 num_eval_rollouts: 10                               # number of rollouts per evaluation step
 num_processes: 5                                    # number of processes for collecting eval rollouts
+
+model_ckpt_dir:                                     # where to look for model checkpoint

@@ -287,12 +287,13 @@ class Trainer(object):
                 meta_dict={"epoch": epoch, "config": self.config},
             )
 
-        path = os.path.join(self.ckpt_dir, f"epoch_{epoch:03d}.pt")
-        print(f"saving model to {path}")
-        save_dict = self.model.state_dict()
-        save_dict["epoch"] = epoch
-        save_dict["config"] = self.config
-        torch.save(save_dict, path)
+        if self.config.log_outputs:
+            path = os.path.join(self.ckpt_dir, f"epoch_{epoch:03d}.pt")
+            print(f"saving model to {path}")
+            save_dict = self.model.state_dict()
+            save_dict["epoch"] = epoch
+            save_dict["config"] = self.config
+            torch.save(save_dict, path)
 
     def setup_model(self):
         if self.config.model.model_cls == "decision_transformer":
