@@ -1,29 +1,36 @@
 hidden_size: 768
-
-state_dim: ${data.state_dim}
+state_dim: ${data.state_dim}                              
 act_dim: ${data.act_dim}
+emb_state_separate: False                                  # separately encode each component of the state (e.g. arm-pose, obj-pose, etc)
+stochastic: False                                          # parameterize action as a Gaussian distribution
+use_entropy: False                                         # add entropy regularization to encourage exploration during online training
+target_entropy: False                                      # auto-tune the entropy term 
+predict_return_dist: False                                 # add additional loss for predicting return
 
+# encoding network for the state
 state_encoder:
-  hidden_size: ${model.hidden_size}
+  hidden_size: ${model.hidden_size}                   
   state_dim: ${data.state_dim}
   act_dim: ${data.act_dim}
+  state_keys: ${data.state_keys}
+  
+  vision_backbone: ${data.vision_backbone}                 # clip | resnet
+  clip_feat_dim: 768                                       # output feature dim of CLIP vision model
+  resnet_feat_dim: 1000
+  image_keys: ${data.image_keys}                           # keys to different image inputs (e.g. overhead_rgb, overhead_depth, etc)
+  num_img_proj_layers: 3                                   # number of mlp projection layers after vision encoder
+  num_ll_enc_layers: 3                                     # number of mlp projection layers after ll state encoder
+
+  # some extra params for metaworld
   pos_hand: 3
   obs_obj_max_len: 14
   gripper_distance_apart: 1
   goal_pos: 3
-  state_keys: ${data.state_keys}
-  vision_backbone: clip                           # clip | resnet
-  img_feat_dim: 768                               # output feature dim of pretrained vision model
-  num_img_proj_layers: 3                          # number of mlp projection layers after vision encoder
-  num_ll_enc_layers: 3                            # number of mlp projection layers after ll state encoder
 
-  clip_feat_dim: 768 
-  resnet_feat_dim: 1000
-  image_keys: ${data.image_keys}
-
-emb_state_separate: True
-# num_layers: 3
-stochastic: False
-use_entropy: False
-target_entropy: False
-predict_return_dist: False
+# adapter configuration
+use_adapters: False                                        # do we add an adapter during training
+adapter_task_name: ${data.task}                            # this should be the task name
+adapter:                                    
+  config: pfeiffer+inv            
+  nonlinearity: none 
+  reduction_factor: none

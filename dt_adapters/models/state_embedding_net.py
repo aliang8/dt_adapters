@@ -9,6 +9,10 @@ from dt_adapters.mw_constants import OBJECTS
 
 
 class StateEmbeddingNet(nn.Module):
+    """
+    Embedding network to process state information
+    """
+
     def __init__(self, config, **kwargs):
         super().__init__()
         self.config = config

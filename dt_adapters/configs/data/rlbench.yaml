@@ -2,10 +2,11 @@ data_dir: /data/anthony/dt_adapters/data/rlbench_data/mt15_v1
 data_file: rlbench_demo_feats.hdf5
 
 env_name: rlbench
+
 state_dim: 30
 act_dim: 8
 max_ep_len: 1000
-task:
+task: ???
 
 ll_state_keys: 
   - joint_positions

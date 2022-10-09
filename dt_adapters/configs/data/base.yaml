@@ -1,12 +1,13 @@
-context_len: 50                     # number of timesteps the DT model can attend to 
-state_dim: ???                      # all MW environments have the same state vector structure
-act_dim: ???                        # position control [x,y,z,gripper]
-max_ep_len: ???                     # max number of steps allowed in env
-scale: 1000                         # return normalization for online fine-tuning
-data_dir: ""
+context_len: 50                                   # number of timesteps the DT model can attend to 
+state_dim: ???                                
+act_dim: ???                                     
+max_ep_len: ???                                   # max number of steps allowed in env
+scale: 1000                                       # return normalization for online fine-tuning
+data_dir: ???                                     # root folder of dataset
+data_file: ???                                    # data hdf5 file name
 
-# config for encoding visual information
-image_size: 64
-vision_backbone: clip
-vision_mdl_key: openai/clip-vit-base-patch32
-state_keys: ["low_level", "image"]
+# visual encoder
+image_size: 64                                    # resize dimension for image input
+vision_backbone: clip                             # which model to use for extracting visual features [clip|resnet]
+vision_mdl_key: openai/clip-vit-base-patch32      
+state_keys: ["low_level", "image"]                # what modality of information to use as state representation
