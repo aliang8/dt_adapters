@@ -33,8 +33,6 @@ model_ckpt_dir: /data/anthony/dt_adapters/outputs/
 # model_ckpt_dir: 
 load_from_ckpt: False
 
-env_name: 
-task: 
 obj_randomization: False
 hide_goal: False
 freeze_backbone: False
@@ -47,9 +45,10 @@ target_return: 500
 scale: 100
 
 num_data_workers: 1
+num_processes: 5
 
 use_adapters: False
-adapter_task_name: ${task}                            # this should be the task name
+adapter_task_name: ${data.task}                            # this should be the task name
 adapter:
   config: pfeiffer+inv
   nonlinearity: none 

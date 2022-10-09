@@ -96,7 +96,7 @@ class RLBenchEnv(gym.Env):
 
         if self._observation_mode == "state":
             # return obs.get_low_dim_data()
-            return ll_state
+            return {"state": ll_state}
         elif self._observation_mode == "vision":
             image_state = {k: getattr(obs, k) for k in self.config.image_keys}
             return {"state": ll_state, **image_state}

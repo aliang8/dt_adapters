@@ -33,7 +33,8 @@ class MLPPolicy(nn.Module):
 
     def forward(self, states, actions, img_feats=None, obj_ids=None, **kwargs):
         states = states.float()
-        obj_ids = obj_ids.long()
+        if obj_ids is not None:
+            obj_ids = obj_ids.long()
 
         if self.emb_state_separate:
             embedding = self.encoder(states, img_feats, obj_ids)
