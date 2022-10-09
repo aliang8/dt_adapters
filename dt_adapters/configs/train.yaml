@@ -11,5 +11,10 @@ defaults:
 general:
   online_training: False                          
   train_on_offline_data: True
-  use_adapters: False
   stage: pretraining
+
+model:
+  use_adapters: False
+
+data:
+  obj_randomization: True

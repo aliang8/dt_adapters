@@ -66,7 +66,7 @@ train_tasks:                                      # tasks to pretrain on
   - window-open-v2
   - window-close-v2
 
-finetune_task: ${task}                             # tasks to train adapters on
+finetune_tasks: ${data.task}                             # tasks to train adapters on
   # - bin-picking-v2
   # - box-close-v2
   # - hand-insert-v2

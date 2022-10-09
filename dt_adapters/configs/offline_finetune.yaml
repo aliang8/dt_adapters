@@ -11,6 +11,10 @@ general:
   load_from_ckpt: True
   num_eval_rollouts: 10
   train_on_offline_data: True
-  obj_randomization: True
-  use_adapters: True  
   stage: finetuning
+
+model:
+  use_adapters: True  
+
+data:
+  obj_randomization: False

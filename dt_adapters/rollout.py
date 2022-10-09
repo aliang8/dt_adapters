@@ -37,7 +37,7 @@ def rollout(
     if config.data.env_name == "metaworld":
         env = mw_utils.initialize_env(
             task=config.data.task,
-            obj_randomization=config.obj_randomization,
+            obj_randomization=config.data.obj_randomization,
             hide_goal=False,
             observation_mode=observation_mode,
         )

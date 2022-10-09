@@ -45,11 +45,11 @@ CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 -m dt_adapters.trainer \
     general.load_from_ckpt=True \
     general.model_ckpt_dir=/path/to/model/ckpt \
     general.eval_every=1 \
-    general.obj_randomization=True \
     general.freeze_backbone=True \
     model.use_adapters=False \
+    data.obj_randomization=True \
     data.task=hand-insert-v2 \
-    
+
 # ========================================
 # Decision Transformer policy experiments
 # ========================================
