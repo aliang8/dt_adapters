@@ -25,7 +25,7 @@ from pprint import pprint
 from tqdm import tqdm
 from collections import OrderedDict
 from omegaconf import OmegaConf
-import multiprocessing as mp
+import torch.multiprocessing as mp
 from functools import partial
 
 
@@ -62,6 +62,7 @@ class Trainer(object):
 
     def __init__(self, config):
         set_all_seeds(config.seed)
+
         self.config = config
         self.setup_logging()
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -243,6 +244,7 @@ class Trainer(object):
         )
 
     def eval(self, epoch):
+        print("running eval")
         log_eval_videos = (
             epoch % self.config.log_eval_videos_every == 0 or self.config.mode == "eval"
         )
@@ -301,9 +303,6 @@ class Trainer(object):
         elif self.config.model.model_cls == "mlp_policy":
             model_cls = MLPPolicy
 
-        model = model_cls(self.config.model)
-        print("base model params: ", general_utils.count_parameters(model))
-
         if self.config.model_ckpt_dir and self.config.load_from_ckpt:
             # loading from previous checkpoint
             ckpt_file = sorted(glob.glob(f"{self.config.model_ckpt_dir}/models/*"))[-1]
@@ -316,9 +315,13 @@ class Trainer(object):
             del state_dict["epoch"]
             model.load_state_dict(state_dict, strict=True)
             self.config.batch_size = model_config["batch_size"]
+        else:
+            model = model_cls(self.config.model)
 
-        if self.config.use_adapters:
-            task_name = self.config.adapter_task_name
+        print("base model params: ", general_utils.count_parameters(model))
+
+        if self.config.model.use_adapters:
+            task_name = self.config.model.adapter_task_name
             cfg = self.config.adapter
             cfg = OmegaConf.to_container(cfg)
             cfg["nonlinearity"] = None
@@ -350,9 +353,13 @@ class Trainer(object):
                 self.depth_img_preprocessor,
                 self.depth_img_encoder,
             ) = get_visual_encoders(self.config.data.image_size, "cuda")
+            self.img_encoder.share_memory()
+            self.depth_img_encoder.share_memory()
         else:
             self.img_encoder = None
             self.depth_img_encoder = None
+
+        self.model.share_memory()
 
     def update_path(self, path):
         # "obj_ids": mw_utils.get_object_indices(self.config.env_name),
@@ -557,7 +564,7 @@ class Trainer(object):
         attend_to_rtg=False,
         log_eval_videos=False,
     ):
-        torch.multiprocessing.set_start_method("spawn")
+        # torch.multiprocessing.set_start_method("spawn", force=True)
         start = time.time()
 
         rollout_kwargs = general_utils.AttrDict(
@@ -612,4 +619,5 @@ def main(config):
 
 
 if __name__ == "__main__":
+    torch.multiprocessing.set_start_method("spawn")
     main()

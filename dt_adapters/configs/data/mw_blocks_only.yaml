@@ -26,6 +26,9 @@ train_tasks:                                      # tasks to pretrain on
   - sweep-v2
   - pick-place-wall-v2
   
-finetune_tasks:                                    # tasks to offline fine-tune on
-  - pick-place-v2
-  - pick-place-wall-v2
+finetune_task: ${task}                            # tasks to offline fine-tune on
+
+
+# choose from these
+  # - pick-place-v2
+  # - pick-place-wall-v2

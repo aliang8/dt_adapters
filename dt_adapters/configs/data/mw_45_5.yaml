@@ -16,7 +16,7 @@ obj_randomization: False                          # randomize object position ev
 image_keys: 
   - rgb
 
-train_tasks:                                       # tasks to pretrain on
+train_tasks:                                      # tasks to pretrain on
   - assembly-v2
   - basketball-v2
   - button-press-topdown-v2
@@ -66,9 +66,9 @@ train_tasks:                                       # tasks to pretrain on
   - window-open-v2
   - window-close-v2
 
-finetune_tasks:                                      # tasks to train adapters on
-  - bin-picking-v2
-  - box-close-v2
-  - hand-insert-v2
-  - door-lock-v2
-  - door-unlock-v2
+finetune_task: ${task}                             # tasks to train adapters on
+  # - bin-picking-v2
+  # - box-close-v2
+  # - hand-insert-v2
+  # - door-lock-v2
+  # - door-unlock-v2
