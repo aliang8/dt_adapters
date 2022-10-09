@@ -1,7 +1,17 @@
+import os
+import warnings
+import gym
+from gym.logger import set_level
+
+# ignore some tf warnings and gym, they're very annoying
+# need to import this before my other modules
+warnings.filterwarnings("ignore")
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+set_level(40)  # only log errors
+
 import argparse
 import json
 import time
-import os
 import sys
 import importlib
 import wandb
@@ -57,7 +67,9 @@ class Trainer(object):
         # setup dataset
         start = time.time()
         self.dataset = DemoDataset(self.config.data, stage=config.stage)
-        print(f"took {time.time() - start} seconds to load data")
+        print(f"dataset len: {len(self.dataset)}")
+        print(f"stage: {config.stage}, took {time.time() - start} seconds to load data")
+
         self.setup_dataloader()
         self.setup_optimizer()
         self.total_training_iters = 0
@@ -253,7 +265,9 @@ class Trainer(object):
                     self.save_videos(videos, key=key)
 
         print("=" * 50)
-        print(f"epoch {epoch} eval out of {self.config.num_eval_rollouts} episodes")
+        print(
+            f"task: {self.config.data.task}, epoch {epoch} eval out of {self.config.num_eval_rollouts} episodes"
+        )
         pprint(metrics)
         print("=" * 50)
 
@@ -320,12 +334,17 @@ class Trainer(object):
         print("final model params: ", general_utils.count_parameters(model))
 
         # load ll_state and image encoding networks
-        (
-            self.img_preprocessor,
-            self.img_encoder,
-            self.depth_img_preprocessor,
-            self.depth_img_encoder,
-        ) = get_visual_encoders(self.config.data.image_size, "cuda")
+        if "image" in self.config.data.state_keys:
+            print("loading visual feature extractors")
+            (
+                self.img_preprocessor,
+                self.img_encoder,
+                self.depth_img_preprocessor,
+                self.depth_img_encoder,
+            ) = get_visual_encoders(self.config.data.image_size, "cuda")
+        else:
+            self.img_encoder = None
+            self.depth_img_encoder = None
 
     def update_path(self, path):
         # "obj_ids": mw_utils.get_object_indices(self.config.env_name),
@@ -571,6 +590,11 @@ class Trainer(object):
 def main(config):
     OmegaConf.set_struct(config, False)
     config.update(config.general)
+    print("=" * 50)
+    print("config:")
+    pprint(OmegaConf.to_container(config))
+    print("=" * 50)
+
     trainer = Trainer(config)
 
     if config.mode == "train":

@@ -158,10 +158,10 @@ def process_feats(config):
     hf.close()
 
 
-@hydra.main(config_path="../configs", config_name="train")
-def main(config):
-    process_feats(config.data)
+# @hydra.main(config_path="../configs", config_name="train")
+# def main(config):
+#     process_feats(config.data)
 
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()

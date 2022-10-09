@@ -18,29 +18,30 @@ import tqdm
 import wandb
 import dt_adapters.mw_utils as mw_utils
 import gym
+
 import dt_adapters.envs.rlbench_env
 from collections import defaultdict as dd
 import multiprocessing as mp
 
 
-def rollout(config, trajectory):
-    task = trajectory["task"]
-    env = gym.make(f"{task}-vision-v0", config=config, render_mode="rgb_array")
-    obs = env.reset()
+# def rollout(config, trajectory):
+#     task = trajectory["task"]
+#     env = gym.make(f"{task}-vision-v0", config=config, render_mode="rgb_array")
+#     obs = env.reset()
 
-    video = []
-    # print(trajectory["actions"].shape)
-    for action in trajectory["actions"]:
-        #     # print(action.shape)
-        #     # print(action)
-        obs, reward, terminate, info = env.step(action)
-        frame = env.render(mode="rgb_array")
-        #     # print(frame.shape)
-        #     # print(obs.keys())
-        video.append(frame)
+#     video = []
+#     # print(trajectory["actions"].shape)
+#     for action in trajectory["actions"]:
+#         #     # print(action.shape)
+#         #     # print(action)
+#         obs, reward, terminate, info = env.step(action)
+#         frame = env.render(mode="rgb_array")
+#         #     # print(frame.shape)
+#         #     # print(obs.keys())
+#         video.append(frame)
 
-    env.close()
-    return video
+#     env.close()
+#     return video
 
 
 class DemoDataset(BaseDataset):
@@ -113,149 +114,149 @@ class DemoDataset(BaseDataset):
         )
 
 
-if __name__ == "__main__":
-    mw_config = general_utils.AttrDict(
-        data_file="trajectories_all_with_images_10.hdf5",
-        state_dim=39,
-        act_dim=4,
-        context_len=50,
-        max_ep_len=500,
-        train_tasks=["pick-place-v2"],
-        finetune_tasks=[],
-        state_keys=["image"],
-        hide_goal=False,
-        scale=100,
-        image_size=64,
-        vision_backbone="clip",
-        env_name="metaworld",
-    )
+# if __name__ == "__main__":
+#     mw_config = general_utils.AttrDict(
+#         data_file="trajectories_all_with_images_10.hdf5",
+#         state_dim=39,
+#         act_dim=4,
+#         context_len=50,
+#         max_ep_len=500,
+#         train_tasks=["pick-place-v2"],
+#         finetune_tasks=[],
+#         state_keys=["image"],
+#         hide_goal=False,
+#         scale=100,
+#         image_size=64,
+#         vision_backbone="clip",
+#         env_name="metaworld",
+#     )
 
-    rlbench_config = general_utils.AttrDict(
-        data_dir="/data/anthony/dt_adapters/data/rlbench_data/mt15_v1",
-        data_file="rlbench_demo_feats.hdf5",
-        state_keys=["image"],
-        state_dim=30,
-        act_dim=8,
-        context_len=50,
-        max_ep_len=500,
-        train_tasks=["close_fridge", "close_box", "slide_cabinet_open"],
-        finetune_tasks=[],
-        hide_goal=False,
-        scale=100,
-        image_size=64,
-        vision_backbone="clip",
-        ll_state_keys=[
-            "joint_positions",
-            "joint_forces",
-            "gripper_open",
-            "gripper_pose",
-            "gripper_joint_positions",
-            "gripper_touch_forces",
-        ],
-        image_keys=["overhead_rgb", "overhead_depth"],
-        env_name="rlbench",
-        use_stored_states=True,
-    )
+#     rlbench_config = general_utils.AttrDict(
+#         data_dir="/data/anthony/dt_adapters/data/rlbench_data/mt15_v1",
+#         data_file="rlbench_demo_feats.hdf5",
+#         state_keys=["image"],
+#         state_dim=30,
+#         act_dim=8,
+#         context_len=50,
+#         max_ep_len=500,
+#         train_tasks=["close_fridge", "close_box", "slide_cabinet_open"],
+#         finetune_tasks=[],
+#         hide_goal=False,
+#         scale=100,
+#         image_size=64,
+#         vision_backbone="clip",
+#         ll_state_keys=[
+#             "joint_positions",
+#             "joint_forces",
+#             "gripper_open",
+#             "gripper_pose",
+#             "gripper_joint_positions",
+#             "gripper_touch_forces",
+#         ],
+#         image_keys=["overhead_rgb", "overhead_depth"],
+#         env_name="rlbench",
+#         use_stored_states=True,
+#     )
 
-    dataset = DemoDataset(rlbench_config)
-    datum = dataset[0]
-    print(datum.keys())
-    print(datum["img_feats"].shape)
+#     dataset = DemoDataset(rlbench_config)
+#     datum = dataset[0]
+#     print(datum.keys())
+#     print(datum["img_feats"].shape)
 
-    videos = dd(list)
-    if rlbench_config.use_stored_states:
-        # just visualizing from stored images
-        from rlbench import ObservationConfig
-        from rlbench.action_modes.action_mode import MoveArmThenGripper
-        from rlbench.action_modes.arm_action_modes import JointVelocity
-        from rlbench.action_modes.gripper_action_modes import Discrete
-        from rlbench.backend.utils import task_file_to_task_class
-        from rlbench.environment import Environment
-        from rlbench.tasks import *
+#     videos = dd(list)
+#     if rlbench_config.use_stored_states:
+#         # just visualizing from stored images
+#         from rlbench import ObservationConfig
+#         from rlbench.action_modes.action_mode import MoveArmThenGripper
+#         from rlbench.action_modes.arm_action_modes import JointVelocity
+#         from rlbench.action_modes.gripper_action_modes import Discrete
+#         from rlbench.backend.utils import task_file_to_task_class
+#         from rlbench.environment import Environment
+#         from rlbench.tasks import *
 
-        tasks = [
-            "CloseFridge",
-            "CloseBox",
-            "PickAndLift",
-            "TakeUmbrellaOutOfUmbrellaStand",
-        ]
+#         tasks = [
+#             "CloseFridge",
+#             "CloseBox",
+#             "PickAndLift",
+#             "TakeUmbrellaOutOfUmbrellaStand",
+#         ]
 
-        obs_config = ObservationConfig()
-        obs_config.set_all(True)
+#         obs_config = ObservationConfig()
+#         obs_config.set_all(True)
 
-        env = Environment(
-            dataset_root=rlbench_config.data_dir,
-            action_mode=MoveArmThenGripper(
-                arm_action_mode=JointVelocity(), gripper_action_mode=Discrete()
-            ),
-            obs_config=ObservationConfig(),
-            headless=False,
-        )
-        env.launch()
+#         env = Environment(
+#             dataset_root=rlbench_config.data_dir,
+#             action_mode=MoveArmThenGripper(
+#                 arm_action_mode=JointVelocity(), gripper_action_mode=Discrete()
+#             ),
+#             obs_config=ObservationConfig(),
+#             headless=False,
+#         )
+#         env.launch()
 
-        for task_name in tasks:
-            task = env.get_task(globals()[task_name])
-            demos = task.get_demos(5, live_demos=False)
+#         for task_name in tasks:
+#             task = env.get_task(globals()[task_name])
+#             demos = task.get_demos(5, live_demos=False)
 
-            video_list = []
-            for demo in demos:
-                video = []
-                for obs in demo._observations:
-                    frame = obs.overhead_rgb
-                    video.append(frame)
-                video_list.append(np.array(video))
-            videos[task.get_name()] = video_list
+#             video_list = []
+#             for demo in demos:
+#                 video = []
+#                 for obs in demo._observations:
+#                     frame = obs.overhead_rgb
+#                     video.append(frame)
+#                 video_list.append(np.array(video))
+#             videos[task.get_name()] = video_list
 
-    else:
-        # executing the actions in the environment
-        torch.multiprocessing.set_start_method("spawn")
-        dataset = DemoDataset(rlbench_config)
-        trajectories = dataset.trajectories
+#     else:
+#         # executing the actions in the environment
+#         torch.multiprocessing.set_start_method("spawn")
+#         dataset = DemoDataset(rlbench_config)
+#         trajectories = dataset.trajectories
 
-        filtered_trajs = []
-        counts = dd(int)
-        for traj in trajectories:
-            if counts[traj["task"]] >= 5:
-                continue
-            filtered_trajs.append(traj)
-            counts[traj["task"]] += 1
+#         filtered_trajs = []
+#         counts = dd(int)
+#         for traj in trajectories:
+#             if counts[traj["task"]] >= 5:
+#                 continue
+#             filtered_trajs.append(traj)
+#             counts[traj["task"]] += 1
 
-        trajectories = filtered_trajs
+#         trajectories = filtered_trajs
 
-        p = mp.Pool(processes=5)
-        print(f"{len(trajectories)} number of trajectories")
+#         p = mp.Pool(processes=5)
+#         print(f"{len(trajectories)} number of trajectories")
 
-        results = [
-            p.apply_async(rollout, args=(rlbench_config, trajectory))
-            for trajectory in trajectories
-        ]
-        eval_rollouts = [p.get() for p in results]
-        p.close()
-        p.join()
-        print("done, starting to make videos")
+#         results = [
+#             p.apply_async(rollout, args=(rlbench_config, trajectory))
+#             for trajectory in trajectories
+#         ]
+#         eval_rollouts = [p.get() for p in results]
+#         p.close()
+#         p.join()
+#         print("done, starting to make videos")
 
-        for i, video in enumerate(eval_rollouts):
-            task = trajectories[i]["task"]
-            videos[task].append(np.array(video))
+#         for i, video in enumerate(eval_rollouts):
+#             task = trajectories[i]["task"]
+#             videos[task].append(np.array(video))
 
-    # log the videos for each task
-    wandb.init(
-        name="rlbench_demos",
-        group="demo_videos",
-        project="dt-adapters",
-        entity="glamor",
-    )
-    for task, video_list in videos.items():
-        video_array = mw_utils.create_video_grid(video_list)
-        print(video_array.shape)
+#     # log the videos for each task
+#     wandb.init(
+#         name="rlbench_demos",
+#         group="demo_videos",
+#         project="dt-adapters",
+#         entity="glamor",
+#     )
+#     for task, video_list in videos.items():
+#         video_array = mw_utils.create_video_grid(video_list)
+#         print(video_array.shape)
 
-        wandb.log(
-            {
-                f"eval/{task}/demo_videos": wandb.Video(
-                    video_array,
-                    caption=f"",
-                    fps=10,
-                    format="gif",
-                )
-            }
-        )
+#         wandb.log(
+#             {
+#                 f"eval/{task}/demo_videos": wandb.Video(
+#                     video_array,
+#                     caption=f"",
+#                     fps=10,
+#                     format="gif",
+#                 )
+#             }
+#         )

@@ -96,15 +96,6 @@ class BaseDataset(Dataset):
             img_feats = traj["img_feats"][si : si + self.context_len].reshape(
                 -1, img_feats_shape
             )
-            # img_feats = torch.cat(
-            #     [
-            #         torch.zeros((self.context_len - tlen, img_feats_shape)).to(
-            #             img_feats.device
-            #         ),
-            #         img_feats,
-            #     ],
-            #     dim=0,
-            # )
             img_feats = np.concatenate(
                 [
                     np.zeros((self.context_len - tlen, img_feats_shape)),

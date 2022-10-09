@@ -28,10 +28,9 @@ def compute_eval_metrics(rollouts):
 
         metrics["episode_length"] += length
         lengths.append(length)
-        success = int(length != 500)
 
-        metrics["success_rate"] += success
-        if success:
+        metrics["success_rate"] += traj["traj_success"]
+        if traj["traj_success"]:
             metrics["num_successes"] += 1
 
             if "rewards" in traj:

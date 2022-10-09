@@ -18,4 +18,3 @@ general:
 
   use_adapters: True  
   stage: finetuning
-  num_processes: 2

@@ -16,6 +16,7 @@ from torchvision.transforms import transforms as T
 from transformers import CLIPProcessor, CLIPVisionModel
 
 import dt_adapters.envs.rlbench_env
+import dt_adapters.mw_utils as mw_utils
 import dt_adapters.general_utils as general_utils
 from dt_adapters.data.process_rlbench_data import extract_image_feats
 
@@ -33,9 +34,18 @@ def rollout(
     log_eval_videos=False,
     results_queue=None,
 ):
-    env = gym.make(
-        f"{config.task}-vision-v0", config=config.data, render_mode="rgb_array"
-    )
+    observation_mode = "image" if "image" in config.data.state_keys else "state"
+    if config.data.env_name == "metaworld":
+        env = mw_utils.initialize_env(
+            task=config.data.task,
+            obj_randomization=config.obj_randomization,
+            hide_goal=False,
+            observation_mode=observation_mode,
+        )
+    elif config.data.env_name == "rlbench":
+        env = gym.make(
+            f"{config.data.task}-vision-v0", config=config.data, render_mode="rgb_array"
+        )
 
     model.reset()
 
@@ -50,58 +60,71 @@ def rollout(
 
     with torch.no_grad():
         start = time.time()
-        print(f"starting rollout..., num_steps: {config.data.max_ep_len}")
 
-        # not sure why i can't pickle this stuff
-        img_preprocessor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
-        depth_img_preprocessor = T.Compose(
-            [
-                T.Lambda(
-                    lambda images: torch.stack(
-                        [T.ToTensor()(image) for image in images]
-                    )
-                ),
-                T.Resize([64]),
-                # T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
-                T.Lambda(lambda images: images.numpy()),
-            ]
-        )
+        if observation_mode == "image":
+            # not sure why i can't pickle this stuff
+            img_preprocessor = CLIPProcessor.from_pretrained(
+                "openai/clip-vit-base-patch32"
+            )
+            depth_img_preprocessor = T.Compose(
+                [
+                    T.Lambda(
+                        lambda images: torch.stack(
+                            [T.ToTensor()(image) for image in images]
+                        )
+                    ),
+                    T.Resize([64]),
+                    # T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+                    T.Lambda(lambda images: images.numpy()),
+                ]
+            )
 
         # ============= PROCESS FIRST OBS =============
         last_obs = env.reset()
-        ll_state = last_obs["state"]
-        img_obs = last_obs
-        del img_obs["state"]
+        last_obs = ll_state = last_obs["state"]
 
-        # add batch dimension
-        for k, _ in img_obs.items():
-            img_obs[k] = img_obs[k][np.newaxis]
+        if observation_mode == "image":
+            img_obs = last_obs
+            del img_obs["state"]
 
-        img_feats = extract_image_feats(
-            img_obs,
-            img_preprocessor,
-            img_encoder,
-            depth_img_preprocessor,
-            depth_img_encoder,
-        )
+            # add batch dimension
+            for k, _ in img_obs.items():
+                img_obs[k] = img_obs[k][np.newaxis]
 
-        [frames[k].append(v) for k, v in img_obs.items()]
+            img_feats = extract_image_feats(
+                img_obs,
+                img_preprocessor,
+                img_encoder,
+                depth_img_preprocessor,
+                depth_img_encoder,
+            )
+
+            [frames[k].append(v) for k, v in img_obs.items()]
+            last_img_feats = img_feats
 
         if log_eval_videos:
-            frames["render"].append(env.render(mode="rgb_array"))
+            if config.data.env_name == "metaworld":
+                frame = env.sim.render(height=300, width=300, camera_name="corner")
+            else:
+                frame = env.render(mode="rgb_array")
 
-        last_obs, last_img_feats = ll_state, img_feats
+            frames["render"].append(frame)
 
+        # create initial conditioning information
+        # these tensors will store the context history for inputting to the model
         states = (
             torch.from_numpy(last_obs)
             .reshape(1, state_dim)
             .to(device=device, dtype=torch.float32)
         )
-        img_feats = (
-            torch.from_numpy(last_img_feats)
-            .reshape(1, -1)
-            .to(device, dtype=torch.float32)
-        )
+        if observation_mode == "image":
+            img_feats = (
+                torch.from_numpy(last_img_feats)
+                .reshape(1, -1)
+                .to(device, dtype=torch.float32)
+            )
+        else:
+            img_feats = None
 
         actions = torch.zeros((0, act_dim), device=device, dtype=torch.float32)
         rewards = torch.zeros(0, device=device, dtype=torch.float32)
@@ -115,6 +138,7 @@ def rollout(
 
         timesteps = torch.tensor(0, device=device, dtype=torch.long).reshape(1, 1)
         episode_length = 0
+        traj_success = False
 
         while episode_length < (config.data.max_ep_len or np.inf):
             # print(episode_length)
@@ -129,7 +153,7 @@ def rollout(
                 actions=actions.to(dtype=torch.float32),
                 returns_to_go=None,
                 obj_ids=None,
-                img_feats=img_feats.to(dtype=torch.float32),
+                img_feats=img_feats,
                 timesteps=timesteps.to(dtype=torch.long),
                 use_means=use_means,
                 use_rtg_mask=use_rtg_mask,
@@ -141,33 +165,42 @@ def rollout(
 
             obs, reward, terminate, info = env.step(action)
 
+            if config.data.env_name == "metaworld":
+                terminate |= bool(info["success"])
+
+            if terminate:
+                traj_success = True
+
             # ============= PROCESS CURRENT OBS =============
             last_obs = ll_state = obs["state"]
-            img_obs = obs
-            del img_obs["state"]
 
-            # add batch dimension
-            for k, _ in img_obs.items():
-                img_obs[k] = img_obs[k][np.newaxis]
+            if observation_mode == "image":
+                img_obs = obs
+                del img_obs["state"]
 
-            last_img_feats = extract_image_feats(
-                img_obs,
-                img_preprocessor,
-                img_encoder,
-                depth_img_preprocessor,
-                depth_img_encoder,
-            )
+                # add batch dimension
+                for k, _ in img_obs.items():
+                    img_obs[k] = img_obs[k][np.newaxis]
 
-            [frames[k].append(v) for k, v in img_obs.items()]
+                last_img_feats = extract_image_feats(
+                    img_obs,
+                    img_preprocessor,
+                    img_encoder,
+                    depth_img_preprocessor,
+                    depth_img_encoder,
+                )
+
+                [frames[k].append(v) for k, v in img_obs.items()]
 
             if log_eval_videos:
-                frames["render"].append(env.render(mode="rgb_array"))
+                if config.data.env_name == "metaworld":
+                    frame = env.sim.render(height=300, width=300, camera_name="corner")
+                else:
+                    frame = env.render(mode="rgb_array")
+
+                frames["render"].append(frame)
 
             agent_infos.append(agent_info)
-
-            episode_length += 1
-            if terminate:
-                break
 
             timesteps = torch.cat(
                 [
@@ -180,11 +213,14 @@ def rollout(
             cur_state = (
                 torch.from_numpy(last_obs).to(device=device).reshape(1, state_dim)
             )
-            cur_img_feats = (
-                torch.from_numpy(last_img_feats).to(device=device).reshape(1, -1)
-            )
+
+            if observation_mode == "image":
+                cur_img_feats = (
+                    torch.from_numpy(last_img_feats).to(device=device).reshape(1, -1)
+                )
+                img_feats = torch.cat([img_feats, cur_img_feats], dim=0)
+
             states = torch.cat([states, cur_state], dim=0)
-            img_feats = torch.cat([img_feats, cur_img_feats], dim=0)
             # if config.model.predict_return_dist:
             #     # use the model's prediction of the return to go
             #     # follow this paper: https://openreview.net/forum?id=fwJWhOxuzV9
@@ -198,6 +234,9 @@ def rollout(
             #     )
 
             rewards[-1] = reward
+            episode_length += 1
+            if terminate:
+                break
 
         for k, v in frames.items():
             if len(v[0].shape) == 3:
@@ -213,6 +252,7 @@ def rollout(
         rewards=general_utils.to_numpy(rewards),
         frames=frames,
         rollout_time=rollout_time,
+        traj_success=traj_success,
     )
     env.close()
 

@@ -6,6 +6,7 @@ act_dim: 4          # position control [x,y,z,gripper]
 max_ep_len: 500     # max number of steps allowed in MW
 hide_goal: False
 env_name: metaworld
+task: 
 
 train_tasks:
   - assembly-v2
