@@ -2,10 +2,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
-from mw_constants import OBJECTS
 from torchvision.models import resnet18, resnet50, ResNet18_Weights, ResNet50_Weights
 
-import general_utils
+import dt_adapters.general_utils as general_utils
+from dt_adapters.mw_constants import OBJECTS
 
 
 class StateEmbeddingNet(nn.Module):

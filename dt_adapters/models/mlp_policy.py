@@ -1,8 +1,9 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from models.state_embedding_net import StateEmbeddingNet
-import general_utils
+
+from dt_adapters.models.state_embedding_net import StateEmbeddingNet
+import dt_adapters.general_utils as general_utils
 
 
 class MLPPolicy(nn.Module):

@@ -11,7 +11,7 @@ state_encoder:
   obs_obj_max_len: 14
   gripper_distance_apart: 1
   goal_pos: 3
-  state_keys: ['low_level', 'image']
+  state_keys: ${data.state_keys}
   vision_backbone: clip                           # clip | resnet
   img_feat_dim: 768                               # output feature dim of pretrained vision model
   num_img_proj_layers: 3                          # number of mlp projection layers after vision encoder

@@ -1,8 +1,6 @@
 from gc import collect
 from metaworld.envs.mujoco.env_dict import ALL_V2_ENVIRONMENTS
-from tests.metaworld.envs.mujoco.sawyer_xyz.utils import trajectory_summary
 from metaworld.policies import *
-from mw_utils import ENVS_AND_SCRIPTED_POLICIES, initialize_env, create_video_grid
 from PIL import Image
 import numpy as np
 import wandb
@@ -13,10 +11,20 @@ import os
 import time
 import hydra
 import multiprocessing as mp
-from mw_dataset import OBJECTS_TO_ENV
-from general_utils import split
 from garage.envs import GymEnv
 from garage.np import discount_cumsum, stack_tensor_dict_list
+
+from dt_adapters.mw_utils import (
+    ENVS_AND_SCRIPTED_POLICIES,
+    initialize_env,
+    create_video_grid,
+)
+from dt_adapters.mw_constants import OBJECTS_TO_ENV
+from dt_adapters.general_utils import split
+from dt_adapters.data.process_rlbench_data import (
+    get_visual_encoders,
+    extract_image_feats,
+)
 
 
 def rollout(
@@ -31,15 +39,24 @@ def rollout(
     """Sample a single episode of the agent in the environment."""
     env_steps = []
     agent_infos = []
-    observations = []
+    states = []
     last_obs, episode_infos = env.reset()
     agent.reset()
     episode_length = 0
+
     if animated:
         env.visualize()
+
+    frames = []
+
+    if animated:
+        frame = env._env.sim.render(height=300, width=300, camera_name="corner")
+        frames.append(frame)
+
     while episode_length < (max_episode_length or np.inf):
         if pause_per_frame is not None:
             time.sleep(pause_per_frame)
+
         a = agent.get_action(last_obs)
         agent_info = {}
         if deterministic and "mean" in agent_info:
@@ -48,20 +65,24 @@ def rollout(
         a[:3] = np.clip(a[:3], -1, 1)  # clip action
         es = env.step(a)
         env_steps.append(es)
-        observations.append(last_obs)
+        states.append(last_obs)
         agent_infos.append(agent_info)
         episode_length += 1
         if es.last:
             break
         last_obs = es.observation
 
+        if animated:
+            frame = env._env.sim.render(height=300, width=300, camera_name="corner")
+            frames.append(frame)
+
     return dict(
         episode_infos=episode_infos,
-        observations=np.array(observations),
+        states=np.array(states),
         actions=np.array([es.action for es in env_steps]),
         rewards=np.array([es.reward for es in env_steps]),
         agent_infos=stack_tensor_dict_list(agent_infos),
-        env_infos=stack_tensor_dict_list([es.env_info for es in env_steps]),
+        frames=np.array(frames),
         dones=np.array([es.terminal for es in env_steps]),
     )
 
@@ -81,8 +102,8 @@ def collect_dataset(config, envs, results_queue, wandb_run):
         # for i in range(DEMOS_PER_ENV):
         while total_success < config.demos_per_env:
             path = rollout(env, policy, animated=True)
-            videos.append(path["env_infos"]["frames"])
-            success = path["observations"].shape[0] != 500
+            videos.append(path["frames"])
+            success = path["states"].shape[0] != 500
             if success:
                 total_success += 1
 
@@ -104,16 +125,40 @@ def collect_dataset(config, envs, results_queue, wandb_run):
 
 def handle_output(config, results_queue):
     hf = h5py.File(os.path.join(config.data_dir, config.data_file), "w")
+    (
+        img_preprocessor,
+        img_encoder,
+        depth_img_preprocessor,
+        depth_img_encoder,
+    ) = get_visual_encoders(config.image_size, "cuda")
+    print("done initializing visual encoders")
+
     while True:
         out = results_queue.get()
         if out is not None:
             env_name, episode, path = out
+
+            print(path["frames"].shape)
+
+            img_feats = extract_image_feats(
+                {"rgb": path["frames"]},
+                img_preprocessor,
+                img_encoder,
+                depth_img_preprocessor,
+                depth_img_encoder,
+            )
+
+            print("done extracting features")
+            print(path["frames"].shape)
+            print(img_feats.shape)
+
             g = hf.create_group(f"{env_name}/demo_{episode}")
-            g.create_dataset("obs", data=path["observations"])
-            g.create_dataset("action", data=path["actions"])
-            g.create_dataset("reward", data=path["rewards"])
-            g.create_dataset("done", data=path["dones"])
-            g.create_dataset("images", data=path["env_infos"]["frames"])
+            g.create_dataset("states", data=path["states"])
+            g.create_dataset("actions", data=path["actions"])
+            g.create_dataset("rewards", data=path["rewards"])
+            g.create_dataset("dones", data=path["dones"])
+            # g.create_dataset("images", data=path["frames"])
+            g.create_dataset("img_feats", data=img_feats)
         else:
             break
     hf.close()

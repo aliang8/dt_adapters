@@ -6,12 +6,12 @@ import torch.nn.functional as F
 
 import transformers
 
-from models.model import TrajectoryModel
-from models.trajectory_gpt2 import TrajectoryGPT2
-from models.state_embedding_net import StateEmbeddingNet
+from dt_adapters.models.model import TrajectoryModel
+from dt_adapters.models.trajectory_gpt2 import TrajectoryGPT2
+from dt_adapters.models.state_embedding_net import StateEmbeddingNet
+from dt_adapters.mw_constants import OBJECTS
 
 from collections import OrderedDict
-from mw_constants import OBJECTS
 
 from torch.distributions import Normal, Independent, Categorical
 from torch.distributions.transformed_distribution import TransformedDistribution
