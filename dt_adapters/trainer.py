@@ -224,6 +224,7 @@ class Trainer(object):
             batch_size=self.config.batch_size,
             num_workers=self.config.num_data_workers,
             drop_last=False,
+            persistent_workers=True,
         )
 
     def save_videos(self, videos, key):
@@ -281,7 +282,7 @@ class Trainer(object):
         print("=" * 50)
 
     def save_model(self, epoch):
-        if self.config.use_adapters:
+        if self.config.model.use_adapters:
             # save just the adapter weights
             self.model.transformer.save_adapter(
                 self.ckpt_dir,
@@ -555,6 +556,9 @@ class Trainer(object):
                 for _ in range(self.config.num_steps_per_epoch):
                     self.train_single_iteration()
                     self.total_training_iters += 1
+
+        # save very last epoch
+        self.save_model(epoch)
 
     def mp_rollout(
         self,
