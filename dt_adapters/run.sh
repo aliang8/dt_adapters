@@ -77,7 +77,8 @@ CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 -m dt_adapters.trainer \
     general.log_outputs=False \
     general.model_ckpt_dir=/path/to/model/ckpt \
     general.eval_every=1 \
-    general.obj_randomization=True \
+    general.freeze_backbone=True \
+    data.obj_randomization=True \
     data.eval_task=bin-picking-v2
 
 # Fine-tune full model on downstream task data
@@ -91,7 +92,7 @@ CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 -m dt_adapters.trainer \
     model.use_adapters=False \
     general.model_ckpt_dir=/path/to/model/ckpt \
     general.eval_every=1 \
-    general.obj_randomization=True \
+    data.obj_randomization=True \
     data.eval_task=bin-picking-v2
 
 # Pretrain DT on RLBench

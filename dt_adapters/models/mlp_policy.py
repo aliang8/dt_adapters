@@ -50,6 +50,8 @@ class MLPPolicy(nn.Module):
     def get_action(self, states, img_feats=None, obj_ids=None, **kwargs):
         # only take last state
         states = states[-1].reshape(1, 1, self.state_dim)
+        if img_feats is not None:
+            img_feats = img_feats[-1].reshape(1, 1, -1)
         predictions = self.forward(states, None, img_feats, obj_ids)
         action_pred = predictions[1].squeeze()
         return action_pred, None, {}

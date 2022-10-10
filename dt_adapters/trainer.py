@@ -284,15 +284,15 @@ class Trainer(object):
         print("=" * 50)
 
     def save_model(self, epoch):
-        if self.config.model.use_adapters:
-            # save just the adapter weights
-            self.model.transformer.save_adapter(
-                self.ckpt_dir,
-                self.config.env_name,
-                meta_dict={"epoch": epoch, "config": self.config},
-            )
-
         if self.config.log_outputs:
+            if self.config.model.use_adapters:
+                # save just the adapter weights
+                self.model.transformer.save_adapter(
+                    self.ckpt_dir,
+                    self.config.env_name,
+                    meta_dict={"epoch": epoch, "config": self.config},
+                )
+
             path = os.path.join(self.ckpt_dir, f"epoch_{epoch:03d}.pt")
             print(f"saving model to {path}")
             save_dict = self.model.state_dict()
@@ -325,7 +325,7 @@ class Trainer(object):
 
         if self.config.model.use_adapters:
             task_name = self.config.model.adapter_task_name
-            cfg = self.config.adapter
+            cfg = self.config.model.adapter
             cfg = OmegaConf.to_container(cfg)
             cfg["nonlinearity"] = None
             cfg["reduction_factor"] = None

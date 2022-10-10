@@ -29,7 +29,7 @@ state_encoder:
 
 # adapter configuration
 use_adapters: False                                        # do we add an adapter during training
-adapter_task_name: ${data.task}                            # this should be the task name
+adapter_task_name: ${data.eval_task}                       # this should be the task name
 adapter:                                    
   config: pfeiffer+inv            
   nonlinearity: none 

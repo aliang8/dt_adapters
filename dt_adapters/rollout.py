@@ -82,7 +82,7 @@ def rollout(
 
         # ============= PROCESS FIRST OBS =============
         last_obs = env.reset()
-        last_obs = ll_state = last_obs["state"]
+        ll_state = last_obs["state"]
 
         if observation_mode == "image":
             img_obs = last_obs
@@ -102,6 +102,8 @@ def rollout(
 
             [frames[k].append(v) for k, v in img_obs.items()]
             last_img_feats = img_feats
+
+        last_obs = ll_state
 
         if log_eval_videos:
             if config.data.env_name == "metaworld":
@@ -173,7 +175,7 @@ def rollout(
                 traj_success = True
 
             # ============= PROCESS CURRENT OBS =============
-            last_obs = ll_state = obs["state"]
+            ll_state = obs["state"]
 
             if observation_mode == "image":
                 img_obs = obs
@@ -193,6 +195,8 @@ def rollout(
 
                 [frames[k].append(v) for k, v in img_obs.items()]
 
+            last_obs = ll_state
+
             if log_eval_videos:
                 if config.data.env_name == "metaworld":
                     frame = env.sim.render(height=300, width=300, camera_name="corner")
@@ -203,6 +207,7 @@ def rollout(
 
             agent_infos.append(agent_info)
 
+            episode_length += 1
             timesteps = torch.cat(
                 [
                     timesteps,
@@ -235,7 +240,6 @@ def rollout(
             #     )
 
             rewards[-1] = reward
-            episode_length += 1
             if terminate:
                 break
 
