@@ -3,7 +3,7 @@ state_dim: ???
 act_dim: ???                                     
 max_ep_len: ???                                   # max number of steps allowed in env
 scale: 1000                                       # return normalization for online fine-tuning
-data_dir: ???                                     # root folder of dataset
+data_dir: /data/anthony/dt_adapters/data/         # root folder of dataset
 data_file: ???                                    # data hdf5 file name
 
 # visual encoder

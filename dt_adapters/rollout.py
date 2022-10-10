@@ -36,14 +36,16 @@ def rollout(
     observation_mode = "image" if "image" in config.data.state_keys else "state"
     if config.data.env_name == "metaworld":
         env = mw_utils.initialize_env(
-            task=config.data.task,
+            task=config.data.eval_task,
             obj_randomization=config.data.obj_randomization,
             hide_goal=False,
             observation_mode=observation_mode,
         )
     elif config.data.env_name == "rlbench":
         env = gym.make(
-            f"{config.data.task}-vision-v0", config=config.data, render_mode="rgb_array"
+            f"{config.data.eval_task}-vision-v0",
+            config=config.data,
+            render_mode="rgb_array",
         )
 
     model.reset()

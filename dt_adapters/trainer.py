@@ -155,6 +155,8 @@ class Trainer(object):
     def setup_logging(self):
         group_name = self.config.exp_name
         exp_prefix = f"exp-{random.randint(int(1e5), int(1e6) - 1)}"
+        if self.config.stage == "finetuning":
+            exp_prefix = self.config.data.eval_task + exp_prefix
 
         if self.config.log_to_wandb:
             wandb.init(
@@ -235,7 +237,7 @@ class Trainer(object):
         )
         wandb.log(
             {
-                f"eval/{self.config.data.task}/{key}/videos": wandb.Video(
+                f"eval/{self.config.data.eval_task}/{key}/videos": wandb.Video(
                     video_array,
                     caption=f"train_iter_{self.total_training_iters}",
                     fps=self.config.fps,
@@ -276,7 +278,7 @@ class Trainer(object):
 
         print("=" * 50)
         print(
-            f"task: {self.config.data.task}, epoch {epoch} eval out of {self.config.num_eval_rollouts} episodes"
+            f"task: {self.config.data.eval_task}, epoch {epoch} eval out of {self.config.num_eval_rollouts} episodes"
         )
         pprint(metrics)
         print("=" * 50)
