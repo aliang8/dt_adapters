@@ -48,14 +48,14 @@ CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 -m dt_adapters.trainer \
     general.freeze_backbone=True \
     model.use_adapters=False \
     data.obj_randomization=True \
-    data.task=hand-insert-v2 \
+    data.eval_task=hand-insert-v2 \
 
 # ========================================
 # Decision Transformer policy experiments
 # ========================================
 
 # Pretrain DT on Metaworld
-CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 -m dt_adapters.trainer \
+CUDA_VISIBLE_DEVICES=3 DISPLAY=:3 python3 -m dt_adapters.trainer \
     --config-name=train \
     data=[base,mw_45_5] \
     model=[base,decision_transformer] \
@@ -64,20 +64,21 @@ CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 -m dt_adapters.trainer \
     general.log_outputs=False \
     general.eval_every=0 \
     data.hide_goal=True \
-    model.state_encoder.num_ll_enc_layers=6 
+    model.state_encoder.num_ll_enc_layers=6 \
+    data.state_keys=low_level
 
 # Train DT with adapters on some downstream task
 CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 -m dt_adapters.trainer \
     --config-name=offline_finetune \
     data=[base,mw_45_5] \
     model=[base,decision_transformer] \
-    general.exp_name=offline_finetune_bin-picking-v2_mw45_finetune_full \
+    general.exp_name=dt_ml45_bin_picking_adapter \
     general.log_to_wandb=False \
     general.log_outputs=False \
     general.model_ckpt_dir=/path/to/model/ckpt \
     general.eval_every=1 \
     general.obj_randomization=True \
-    data.finetune_tasks=["bin-picking-v2"]
+    data.eval_task=bin-picking-v2
 
 # Fine-tune full model on downstream task data
 CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 -m dt_adapters.trainer \
@@ -91,7 +92,7 @@ CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 -m dt_adapters.trainer \
     general.model_ckpt_dir=/path/to/model/ckpt \
     general.eval_every=1 \
     general.obj_randomization=True \
-    data.finetune_tasks=["bin-picking-v2"]
+    data.eval_task=bin-picking-v2
 
 # Pretrain DT on RLBench
 CUDA_VISIBLE_DEVICES=1 DISPLAY=:0 python3 -m dt_adapters.trainer \

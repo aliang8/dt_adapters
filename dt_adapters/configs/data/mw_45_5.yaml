@@ -1,16 +1,12 @@
 # 45-5 task split in the MW benchmark
 
-data_dir: /data/anthony/dt_adapters/data/
 data_file: trajectories_all_with_images_10.hdf5
-
 env_name: metaworld                 
 
 state_dim: 39                                     # all MW environments have the same state vector structure
 act_dim: 4                                        # position control [x,y,z,gripper]
 max_ep_len: 500                                   # max number of steps allowed in MW
 hide_goal: False                                  # the last three values in state correspond to goal position, mask this during pretraining
-
-task: ???                                         
 obj_randomization: False                          # randomize object position every episode
 
 image_keys: 
@@ -66,7 +62,7 @@ train_tasks:                                      # tasks to pretrain on
   - window-open-v2
   - window-close-v2
 
-finetune_tasks: ${data.task}                             # tasks to train adapters on
+eval_task: ???                                  # tasks to train adapters on
   # - bin-picking-v2
   # - box-close-v2
   # - hand-insert-v2

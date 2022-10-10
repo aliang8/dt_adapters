@@ -48,9 +48,6 @@ class DemoDataset(BaseDataset):
     def __init__(self, config, stage="pretraining"):
         super().__init__(config, stage)
 
-        self.train_tasks = config.train_tasks
-        self.finetune_tasks = config.finetune_tasks
-
         all_states = []
 
         # load trajectories into memory
@@ -60,10 +57,10 @@ class DemoDataset(BaseDataset):
             tasks = list(f.keys())
 
             for task in tasks:
-                if stage == "pretraining" and task not in self.train_tasks:
+                if stage == "pretraining" and task not in self.config.train_tasks:
                     continue
 
-                elif stage in "finetuning" and task not in self.finetune_tasks:
+                elif stage in "finetuning" and task not in self.config.eval_task:
                     continue
 
                 if stage not in ["pretraining", "finetuning", "eval"]:

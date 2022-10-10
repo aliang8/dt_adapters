@@ -39,7 +39,7 @@ class MLPPolicy(nn.Module):
         if self.emb_state_separate:
             embedding = self.encoder(states, img_feats, obj_ids)
         else:
-            embedding = self.encoder(states.float())
+            embedding = self.encoder(states, img_feats)
 
         action_preds = self.prediction_layer(embedding)
         return None, action_preds, None, None, None
