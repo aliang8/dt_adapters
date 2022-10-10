@@ -371,11 +371,16 @@ class DecisionTransformerSeparateState(TrajectoryModel):
         return action_preds[0, -1], return_preds[0, -1], {}
 
     def freeze_backbone(self):
+        # freeze everything
         for module in [
             self.embed_state,
             self.embed_return,
             self.embed_action,
             self.embed_timestep,
+            self.embed_ln,
+            self.predict_action,
+            self.predict_state,
+            self.predict_return,
         ]:
             for param in module.parameters():
                 param.requires_grad = False

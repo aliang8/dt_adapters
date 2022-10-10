@@ -12,6 +12,7 @@ general:
   num_eval_rollouts: 10
   train_on_offline_data: True
   stage: finetuning
+  freeze_backbone: True
 
 model:
   use_adapters: True  
