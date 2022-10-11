@@ -98,7 +98,10 @@ class DecisionTransformerSeparateState(TrajectoryModel):
         sample_return_dist=False,
         **kwargs
     ):
-        batch_size, seq_length = states.shape[0], states.shape[1]
+        if states is not None:
+            batch_size, seq_length = states.shape[0], states.shape[1]
+        elif img_feats is not None:
+            batch_size, seq_length = img_feats.shape[0], img_feats.shape[1]
 
         if attention_mask is None:
             # attention mask for GPT: 1 if can be attended to, 0 if not
@@ -260,7 +263,7 @@ class DecisionTransformerSeparateState(TrajectoryModel):
         actions = actions.reshape(1, -1, self.act_dim)
 
         if not returns_to_go:
-            returns_to_go = torch.zeros(1, states.shape[1], 1).to(states.device)
+            returns_to_go = torch.zeros(1, actions.shape[1], 1).to(actions.device)
         else:
             returns_to_go = returns_to_go.reshape(1, -1, 1)
 
@@ -277,12 +280,12 @@ class DecisionTransformerSeparateState(TrajectoryModel):
             # pad all tokens to sequence length
             attention_mask = torch.cat(
                 [
-                    torch.zeros(self.max_length - states.shape[1]),
-                    torch.ones(states.shape[1]),
+                    torch.zeros(self.max_length - actions.shape[1]),
+                    torch.ones(actions.shape[1]),
                 ]
             )
             attention_mask = attention_mask.to(
-                dtype=torch.long, device=states.device
+                dtype=torch.long, device=actions.device
             ).reshape(1, -1)
 
             if states is not None:
