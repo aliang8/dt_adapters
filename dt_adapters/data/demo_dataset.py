@@ -19,7 +19,11 @@ import wandb
 import dt_adapters.mw_utils as mw_utils
 import gym
 
-import dt_adapters.envs.rlbench_env
+try:
+    import dt_adapters.envs.rlbench_env
+except:
+    pass
+
 from collections import defaultdict as dd
 import multiprocessing as mp
 

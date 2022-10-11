@@ -74,11 +74,11 @@ export TOKENIZERS_PARALLELISM=false
     chunks = list(general_utils.chunks(configs, args.num_processes_per_gpu))
 
     if args.mode == "pretraining":
-        base_cmd = (
-            "CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py --config-name=train "
-        )
+        base_cmd = "CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 -m dt_adapters.trainer --config-name=train data=[base,mw_45_5] model=[base,mlp_policy]"
     elif args.mode == "online":
-        base_cmd = "CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py --config-name=online_finetune "
+        base_cmd = "CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 -m dt_adapters.trainer --config-name=online_finetune "
+    elif args.mode == "offline":
+        base_cmd = "CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 -m dt_adapters.trainer --config-name=offline_finetune data=[base,mw_45_5] model=[base,mlp_policy] "
 
     for i, chunk in enumerate(chunks):
         if args.run_amber:
