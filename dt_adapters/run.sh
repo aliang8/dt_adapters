@@ -30,7 +30,7 @@ CUDA_VISIBLE_DEVICES=3 DISPLAY=:0 python3 -m dt_adapters.trainer \
     model.state_encoder.num_ll_enc_layers=6 \
     model.num_prediction_head_layers=4 \
     model.hidden_size=256 \
-    data.state_keys=low_level # change this for state + vision input [low_level,image] or just image
+    data.observation_mode=state # change this for state + vision input [state,image] or just image
 
 
 # MLP fine-tune prediction head on some downstream task
@@ -65,7 +65,7 @@ CUDA_VISIBLE_DEVICES=3 DISPLAY=:3 python3 -m dt_adapters.trainer \
     general.eval_every=0 \
     data.hide_goal=True \
     model.state_encoder.num_ll_enc_layers=6 \
-    data.state_keys=low_level
+    data.observation_mode=state
 
 # Train DT with adapters on some downstream task
 CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 -m dt_adapters.trainer \
@@ -79,7 +79,8 @@ CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 -m dt_adapters.trainer \
     general.eval_every=1 \
     general.freeze_backbone=True \
     data.obj_randomization=True \
-    data.eval_task=bin-picking-v2
+    data.eval_task=bin-picking-v2 \
+    data.observation_mode=[state,image]
 
 # Fine-tune full model on downstream task data
 CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 -m dt_adapters.trainer \
@@ -105,5 +106,5 @@ CUDA_VISIBLE_DEVICES=1 DISPLAY=:0 python3 -m dt_adapters.trainer \
     general.log_outputs=False \
     general.eval_every=0 \
     data.hide_goal=True \
-    data.state_keys=[image,low_level]
+    data.observation_mode=[image,state]
     model.state_encoder.num_ll_enc_layers=6 

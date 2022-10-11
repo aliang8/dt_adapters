@@ -32,7 +32,9 @@ class MLPPolicy(nn.Module):
         general_utils.freeze_module(self.encoder)
 
     def forward(self, states, actions, img_feats=None, obj_ids=None, **kwargs):
-        states = states.float()
+        if states is not None:
+            states = states.float()
+
         if obj_ids is not None:
             obj_ids = obj_ids.long()
 
@@ -49,9 +51,11 @@ class MLPPolicy(nn.Module):
 
     def get_action(self, states, img_feats=None, obj_ids=None, **kwargs):
         # only take last state
-        states = states[-1].reshape(1, 1, self.state_dim)
+        if states is not None:
+            states = states[-1].reshape(1, 1, self.state_dim)
         if img_feats is not None:
             img_feats = img_feats[-1].reshape(1, 1, -1)
+
         predictions = self.forward(states, None, img_feats, obj_ids)
         action_pred = predictions[1].squeeze()
         return action_pred, None, {}

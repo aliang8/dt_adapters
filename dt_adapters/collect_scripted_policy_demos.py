@@ -1,6 +1,9 @@
-from gc import collect
-from metaworld.envs.mujoco.env_dict import ALL_V2_ENVIRONMENTS
-from metaworld.policies import *
+"""
+CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 dt_adapters/collect_scripted_policy_demos.py \
+    --config-name=data_collection \
+    data_file=trajectories_all_images_multiview_10.hdf5 \
+    multiprocessing=False
+"""
 from PIL import Image
 import numpy as np
 import wandb
@@ -11,6 +14,7 @@ import os
 import time
 import hydra
 import multiprocessing as mp
+from collections import defaultdict as dd
 from garage.envs import GymEnv
 from garage.np import discount_cumsum, stack_tensor_dict_list
 
@@ -25,6 +29,8 @@ from dt_adapters.data.utils import (
     get_visual_encoders,
     extract_image_feats,
 )
+from metaworld.envs.mujoco.env_dict import ALL_V2_ENVIRONMENTS
+from metaworld.policies import *
 
 
 def rollout(
@@ -38,52 +44,59 @@ def rollout(
 ):
     """Sample a single episode of the agent in the environment."""
     env_steps = []
-    agent_infos = []
     states = []
-    last_obs, episode_infos = env.reset()
+    actions = []
+    rewards = []
+    dones = []
+    last_obs = env.reset()
     agent.reset()
     episode_length = 0
+    traj_success = False
+
+    frames = dd(list)
 
     if animated:
-        env.visualize()
+        for k, v in last_obs.items():
+            if k != "state":
+                frames[k].append(v)
 
-    frames = []
-
-    if animated:
-        frame = env._env.sim.render(height=300, width=300, camera_name="corner")
-        frames.append(frame)
+    states.append(last_obs["state"])
 
     while episode_length < (max_episode_length or np.inf):
-        if pause_per_frame is not None:
-            time.sleep(pause_per_frame)
-
-        a = agent.get_action(last_obs)
-        agent_info = {}
-        if deterministic and "mean" in agent_info:
-            a = agent_info["mean"]
-
+        a = agent.get_action(last_obs["state"])
         a[:3] = np.clip(a[:3], -1, 1)  # clip action
-        es = env.step(a)
-        env_steps.append(es)
-        states.append(last_obs)
-        agent_infos.append(agent_info)
+        obs, reward, terminate, info = env.step(a)
+        terminate |= bool(info["success"])
+
+        rewards.append(reward)
+        actions.append(a)
+
         episode_length += 1
-        if es.last:
+        if terminate:
+            dones.append(1)
+            traj_success = True
             break
-        last_obs = es.observation
+        else:
+            dones.append(0)
+
+        states.append(obs["state"])
+        last_obs = obs
 
         if animated:
-            frame = env._env.sim.render(height=300, width=300, camera_name="corner")
-            frames.append(frame)
+            for k, v in last_obs.items():
+                if k != "state":
+                    frames[k].append(v)
+
+    for k, v in frames.items():
+        frames[k] = np.array(v)
 
     return dict(
-        episode_infos=episode_infos,
         states=np.array(states),
-        actions=np.array([es.action for es in env_steps]),
-        rewards=np.array([es.reward for es in env_steps]),
-        agent_infos=stack_tensor_dict_list(agent_infos),
-        frames=np.array(frames),
-        dones=np.array([es.terminal for es in env_steps]),
+        actions=np.array(actions),
+        rewards=np.array(rewards),
+        frames=frames,
+        traj_success=traj_success,
+        dones=np.array(dones),
     )
 
 
@@ -93,21 +106,23 @@ def collect_dataset(config, envs, results_queue, wandb_run):
             continue
 
         print(env_name)
-        env = initialize_env(env_name, obj_randomization=True, hide_goal=False)
-        max_path_length = env.max_path_length
-        env = GymEnv(env, max_episode_length=max_path_length)
+        env = initialize_env(
+            env_name,
+            obj_randomization=True,
+            hide_goal=False,
+            observation_mode="state_image",
+        )
         videos = []
 
         total_success = 0
         # for i in range(DEMOS_PER_ENV):
         while total_success < config.demos_per_env:
-            path = rollout(env, policy, animated=True)
-            videos.append(path["frames"])
-            success = path["states"].shape[0] != 500
-            if success:
+            path = rollout(env, policy, animated=True, max_episode_length=500)
+            videos.append(path["frames"])  # TODO: needs fixing
+            if path["traj_success"]:
                 total_success += 1
 
-            if results_queue is not None and success:
+            if results_queue is not None and path["traj_success"]:
                 results_queue.put((env_name, total_success, path))
 
         print(f"{total_success}/{config.demos_per_env} successes")
@@ -138,10 +153,10 @@ def handle_output(config, results_queue):
         if out is not None:
             env_name, episode, path = out
 
-            print(path["frames"].shape)
+            print(path.keys())
 
             img_feats = extract_image_feats(
-                {"rgb": path["frames"]},
+                path["frames"],
                 img_preprocessor,
                 img_encoder,
                 depth_img_preprocessor,
@@ -149,7 +164,6 @@ def handle_output(config, results_queue):
             )
 
             print("done extracting features")
-            print(path["frames"].shape)
             print(img_feats.shape)
 
             g = hf.create_group(f"{env_name}/demo_{episode}")

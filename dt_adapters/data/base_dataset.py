@@ -91,7 +91,7 @@ class BaseDataset(Dataset):
         if "obj_ids" in traj:
             out["obj_ids"] = np.array(traj["obj_ids"])
 
-        if "image" in self.config.state_keys:
+        if "image" in self.config.observation_mode:
             img_feats_shape = traj["img_feats"].shape[-1]
             img_feats = traj["img_feats"][si : si + self.context_len].reshape(
                 -1, img_feats_shape

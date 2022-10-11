@@ -10,7 +10,10 @@ hide_goal: False                                  # the last three values in sta
 obj_randomization: False                          # randomize object position every episode
 
 image_keys: 
-  - rgb
+  - corner_rgb
+  - corner2_rgb
+  - corner3_rgb
+  - topview_rgb
 
 train_tasks:                                      # tasks to pretrain on
   - assembly-v2
