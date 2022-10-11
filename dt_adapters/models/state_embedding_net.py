@@ -66,17 +66,17 @@ class StateEmbeddingNet(nn.Module):
             self.ll_state_encoder = nn.Sequential(*encoder_modules)
 
     def forward(self, states=None, img_feats=None, obj_ids=None, **kwargs):
-        # encode image observation
-        batch_size, seq_length = states.shape[0], states.shape[1]
-
         encodings = []
 
         if "image" in self.config.observation_mode:
+            batch_size, seq_length = img_feats.shape[0], img_feats.shape[1]
             img_encoding = self.projection(img_feats.float())
             img_encoding = img_encoding.reshape(batch_size, seq_length, -1)
             encodings.append(img_encoding)
 
         if "state" in self.config.observation_mode:
+            batch_size, seq_length = states.shape[0], states.shape[1]
+
             # curr_obs = states[:, :, :18]
             # prev_obs = states[:, :, 18:36]
 

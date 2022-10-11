@@ -24,7 +24,7 @@ def compute_eval_metrics(rollouts):
 
             metrics["return_std"] = np.std(returns)
 
-        length = traj["states"].shape[0]
+        length = traj["actions"].shape[0]
 
         metrics["episode_length"] += length
         lengths.append(length)

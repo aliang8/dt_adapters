@@ -373,8 +373,8 @@ class Trainer(object):
                 "returns_to_go": general_utils.discount_cumsum(
                     path["rewards"], gamma=1.0
                 ),
-                "timesteps": np.arange(len(path["states"])),
-                "attention_mask": np.ones(len(path["states"])),
+                "timesteps": np.arange(len(path["actions"])),
+                "attention_mask": np.ones(len(path["actions"])),
                 "online": 1,
             }
         )

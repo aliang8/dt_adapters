@@ -15,7 +15,11 @@ import gym
 from torchvision.transforms import transforms as T
 from transformers import CLIPProcessor, CLIPVisionModel
 
-import dt_adapters.envs.rlbench_env
+try:
+    import dt_adapters.envs.rlbench_env
+except:
+    pass
+
 import dt_adapters.mw_utils as mw_utils
 import dt_adapters.general_utils as general_utils
 from dt_adapters.data.process_rlbench_data import extract_image_feats
@@ -82,11 +86,16 @@ def rollout(
 
         # ============= PROCESS FIRST OBS =============
         last_obs = env.reset()
-        ll_state = last_obs["state"]
 
-        if observation_mode == "image":
+        if "state" in observation_mode:
+            ll_state = last_obs["state"]
+        else:
+            ll_state = None
+
+        if "image" in observation_mode:
             img_obs = last_obs
-            del img_obs["state"]
+            if "state" in img_obs:
+                del img_obs["state"]
 
             # add batch dimension
             for k, _ in img_obs.items():
@@ -115,12 +124,13 @@ def rollout(
 
         # create initial conditioning information
         # these tensors will store the context history for inputting to the model
-        states = (
-            torch.from_numpy(last_obs)
-            .reshape(1, state_dim)
-            .to(device=device, dtype=torch.float32)
-        )
-        if observation_mode == "image":
+        if "state" in observation_mode:
+            states = (
+                torch.from_numpy(last_obs)
+                .reshape(1, state_dim)
+                .to(device=device, dtype=torch.float32)
+            )
+        if "image" in observation_mode:
             img_feats = (
                 torch.from_numpy(last_img_feats)
                 .reshape(1, -1)
@@ -151,8 +161,13 @@ def rollout(
             )
             rewards = torch.cat([rewards, torch.zeros(1, device=device)])
 
+            if "state" in observation_mode:
+                states = (states.to(dtype=torch.float32) - state_mean) / state_std
+            else:
+                states = None
+
             action, _, agent_info = model.get_action(
-                states=(states.to(dtype=torch.float32) - state_mean) / state_std,
+                states=states,
                 actions=actions.to(dtype=torch.float32),
                 returns_to_go=None,
                 obj_ids=None,
@@ -175,11 +190,15 @@ def rollout(
                 traj_success = True
 
             # ============= PROCESS CURRENT OBS =============
-            ll_state = obs["state"]
+            if "state" in observation_mode:
+                ll_state = obs["state"]
+            else:
+                ll_state = None
 
-            if observation_mode == "image":
+            if "image" in observation_mode:
                 img_obs = obs
-                del img_obs["state"]
+                if "state" in img_obs:
+                    del img_obs["state"]
 
                 # add batch dimension
                 for k, _ in img_obs.items():
@@ -216,17 +235,19 @@ def rollout(
                 ],
                 dim=1,
             )
-            cur_state = (
-                torch.from_numpy(last_obs).to(device=device).reshape(1, state_dim)
-            )
 
-            if observation_mode == "image":
+            if "state" in observation_mode:
+                cur_state = (
+                    torch.from_numpy(last_obs).to(device=device).reshape(1, state_dim)
+                )
+                states = torch.cat([states, cur_state], dim=0)
+
+            if "image" in observation_mode:
                 cur_img_feats = (
                     torch.from_numpy(last_img_feats).to(device=device).reshape(1, -1)
                 )
                 img_feats = torch.cat([img_feats, cur_img_feats], dim=0)
 
-            states = torch.cat([states, cur_state], dim=0)
             # if config.model.predict_return_dist:
             #     # use the model's prediction of the return to go
             #     # follow this paper: https://openreview.net/forum?id=fwJWhOxuzV9
@@ -251,9 +272,13 @@ def rollout(
 
         rollout_time = time.time() - start
 
+    if states is not None:
+        states = general_utils.to_numpy(states)
+
     out = dict(
         episode_infos=episode_infos,
-        states=general_utils.to_numpy(states),
+        states=states,
+        actions=general_utils.to_numpy(actions),
         rewards=general_utils.to_numpy(rewards),
         frames=frames,
         rollout_time=rollout_time,

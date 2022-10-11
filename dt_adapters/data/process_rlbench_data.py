@@ -15,12 +15,15 @@ from omegaconf import OmegaConf
 import numpy as np
 from collections import defaultdict as dd
 
-from rlbench.action_modes.action_mode import MoveArmThenGripper
-from rlbench.action_modes.arm_action_modes import JointVelocity
-from rlbench.action_modes.gripper_action_modes import Discrete
-from rlbench.environment import Environment
-from rlbench.observation_config import ObservationConfig
-from rlbench.tasks import *
+try:
+    from rlbench.action_modes.action_mode import MoveArmThenGripper
+    from rlbench.action_modes.arm_action_modes import JointVelocity
+    from rlbench.action_modes.gripper_action_modes import Discrete
+    from rlbench.environment import Environment
+    from rlbench.observation_config import ObservationConfig
+    from rlbench.tasks import *
+except:
+    pass
 
 from dt_adapters.data.base_dataset import BaseDataset
 from dt_adapters.general_utils import AttrDict, discount_cumsum
