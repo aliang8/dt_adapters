@@ -33,7 +33,7 @@ def rollout(
     attend_to_rtg=False,
     log_eval_videos=False,
 ):
-    observation_mode = "image" if "image" in config.data.state_keys else "state"
+    observation_mode = config.data.observation_mode
     if config.data.env_name == "metaworld":
         env = mw_utils.initialize_env(
             task=config.data.eval_task,

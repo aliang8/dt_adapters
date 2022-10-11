@@ -97,7 +97,7 @@ class DemoDataset(BaseDataset):
                             }
                         )
 
-                    if "image" in self.config.state_keys:
+                    if "image" in self.config.observation_mode:
                         traj["img_feats"] = demo["img_feats"][()]
 
                     self.trajectories.append(traj)
@@ -120,7 +120,7 @@ class DemoDataset(BaseDataset):
 #         max_ep_len=500,
 #         train_tasks=["pick-place-v2"],
 #         finetune_tasks=[],
-#         state_keys=["image"],
+#         observation_mode="image",
 #         hide_goal=False,
 #         scale=100,
 #         image_size=64,
@@ -131,7 +131,7 @@ class DemoDataset(BaseDataset):
 #     rlbench_config = general_utils.AttrDict(
 #         data_dir="/data/anthony/dt_adapters/data/rlbench_data/mt15_v1",
 #         data_file="rlbench_demo_feats.hdf5",
-#         state_keys=["image"],
+#         observation_mode="image",
 #         state_dim=30,
 #         act_dim=8,
 #         context_len=50,
@@ -142,7 +142,7 @@ class DemoDataset(BaseDataset):
 #         scale=100,
 #         image_size=64,
 #         vision_backbone="clip",
-#         ll_state_keys=[
+#         ll_observation_mode=[
 #             "joint_positions",
 #             "joint_forces",
 #             "gripper_open",

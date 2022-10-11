@@ -289,7 +289,7 @@ class Trainer(object):
                 # save just the adapter weights
                 self.model.transformer.save_adapter(
                     self.ckpt_dir,
-                    self.config.env_name,
+                    self.config.data.eval_task,
                     meta_dict={"epoch": epoch, "config": self.config},
                 )
 
@@ -339,7 +339,7 @@ class Trainer(object):
             # set the adapters to be used in every forward pass
             model.transformer.set_active_adapters(task_name)
 
-        if self.config.stage != "pretraining" and self.config.freeze_backbone:
+        if self.config.freeze_backbone:
             model.freeze_backbone()
 
         self.model = model.to(self.device)
@@ -348,7 +348,7 @@ class Trainer(object):
         print("final model params: ", general_utils.count_parameters(model))
 
         # load ll_state and image encoding networks
-        if "image" in self.config.data.state_keys:
+        if "image" in self.config.data.observation_mode:
             print("loading visual feature extractors")
             (
                 self.img_preprocessor,

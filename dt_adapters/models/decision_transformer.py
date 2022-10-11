@@ -106,7 +106,9 @@ class DecisionTransformerSeparateState(TrajectoryModel):
                 states.device
             )
 
-        states = states.float()
+        if states is not None:
+            states = states.float()
+
         actions = actions.float()
         if returns_to_go is None:
             returns_to_go = torch.zeros((batch_size, seq_length, 1)).to(states.device)
@@ -252,7 +254,9 @@ class DecisionTransformerSeparateState(TrajectoryModel):
         **kwargs
     ):
         # we don't care about the past rewards in this model
-        states = states.reshape(1, -1, self.state_dim)
+        if states is not None:
+            states = states.reshape(1, -1, self.state_dim)
+
         actions = actions.reshape(1, -1, self.act_dim)
 
         if not returns_to_go:
@@ -263,7 +267,9 @@ class DecisionTransformerSeparateState(TrajectoryModel):
         timesteps = timesteps.reshape(1, -1)
 
         if self.max_length is not None:
-            states = states[:, -self.max_length :]
+            if states is not None:
+                states = states[:, -self.max_length :]
+
             actions = actions[:, -self.max_length :]
             returns_to_go = returns_to_go[:, -self.max_length :]
             timesteps = timesteps[:, -self.max_length :]
@@ -278,20 +284,23 @@ class DecisionTransformerSeparateState(TrajectoryModel):
             attention_mask = attention_mask.to(
                 dtype=torch.long, device=states.device
             ).reshape(1, -1)
-            states = torch.cat(
-                [
-                    torch.zeros(
-                        (
-                            states.shape[0],
-                            self.max_length - states.shape[1],
-                            self.state_dim,
+
+            if states is not None:
+                states = torch.cat(
+                    [
+                        torch.zeros(
+                            (
+                                states.shape[0],
+                                self.max_length - states.shape[1],
+                                self.state_dim,
+                            ),
+                            device=states.device,
                         ),
-                        device=states.device,
-                    ),
-                    states,
-                ],
-                dim=1,
-            ).to(dtype=torch.float32)
+                        states,
+                    ],
+                    dim=1,
+                ).to(dtype=torch.float32)
+
             actions = torch.cat(
                 [
                     torch.zeros(

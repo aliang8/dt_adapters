@@ -12,7 +12,7 @@ state_encoder:
   hidden_size: ${model.hidden_size}                   
   state_dim: ${data.state_dim}
   act_dim: ${data.act_dim}
-  state_keys: ${data.state_keys}
+  observation_mode: ${data.observation_mode}
   
   vision_backbone: ${data.vision_backbone}                 # clip | resnet
   clip_feat_dim: 768                                       # output feature dim of CLIP vision model

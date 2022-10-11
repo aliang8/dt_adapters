@@ -20,9 +20,10 @@ class StateEmbeddingNet(nn.Module):
         self.hidden_size = self.config.hidden_size
 
         # state embedding networks
-        if "image" in self.config.state_keys:
+        if "image" in self.config.observation_mode:
             projection_layers = []
             self.img_feat_dim = 0
+
             for k in self.config.image_keys:
                 if "rgb" in k:
                     self.img_feat_dim += self.config.clip_feat_dim
@@ -37,7 +38,7 @@ class StateEmbeddingNet(nn.Module):
 
             self.projection = nn.Sequential(*projection_layers)
 
-        if "low_level" in self.config.state_keys:
+        if "state" in self.config.observation_mode:
             # self.pos_hand = self.config.pos_hand  # for gripper
             # self.goal_pos = self.config.goal_pos
             # self.obs_obj_max_len = self.config.obs_obj_max_len
@@ -64,18 +65,18 @@ class StateEmbeddingNet(nn.Module):
 
             self.ll_state_encoder = nn.Sequential(*encoder_modules)
 
-    def forward(self, states, img_feats=None, obj_ids=None, **kwargs):
+    def forward(self, states=None, img_feats=None, obj_ids=None, **kwargs):
         # encode image observation
         batch_size, seq_length = states.shape[0], states.shape[1]
 
         encodings = []
 
-        if "image" in self.config.state_keys:
+        if "image" in self.config.observation_mode:
             img_encoding = self.projection(img_feats.float())
             img_encoding = img_encoding.reshape(batch_size, seq_length, -1)
             encodings.append(img_encoding)
 
-        if "low_level" in self.config.state_keys:
+        if "state" in self.config.observation_mode:
             # curr_obs = states[:, :, :18]
             # prev_obs = states[:, :, 18:36]
 
