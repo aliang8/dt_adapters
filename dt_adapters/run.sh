@@ -80,7 +80,7 @@ CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 -m dt_adapters.trainer \
     general.freeze_backbone=True \
     data.obj_randomization=True \
     data.eval_task=bin-picking-v2 \
-    data.observation_mode=[state,image]
+    data.observation_mode=state
 
 # Fine-tune full model on downstream task data
 CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 -m dt_adapters.trainer \

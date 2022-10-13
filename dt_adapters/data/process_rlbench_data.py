@@ -1,13 +1,14 @@
 """ 
-CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 data/process_rlbench_data.py \
+CUDA_VISIBLE_DEVICES=2 DISPLAY=:0.2 python3 dt_adapters/data/process_rlbench_data.py \
     --config-name=train \
     data=[base,rlbench] \
     model=[base,decision_transformer] \
-    data.data_dir=/data/anthony/dt_adapters/data/rlbench_data/mt15_v1 \
+    data.data_dir=/data/anthony/dt_adapters/data/rlbench_data/mt15_v1_50 \
     data.data_file=rlbench_demo_feats.hdf5 \
 """
 
 import os
+import tqdm
 import h5py
 import hydra
 import random
@@ -62,13 +63,13 @@ def process_feats(config):
 
     train_tasks = MT15_V1["train"]
 
-    for task in train_tasks:
+    for task in tqdm.tqdm(train_tasks):
         task = env.get_task(task)
         task_name = task.get_name()
         print(task_name)
         task_demos = task.get_demos(-1, live_demos=False)
 
-        for demo_idx, demo in enumerate(task_demos):
+        for demo_idx, demo in tqdm.tqdm(enumerate(task_demos)):
             all_obs = demo._observations
 
             all_actions, all_states = [], []

@@ -68,12 +68,17 @@ class DecisionTransformerSeparateState(TrajectoryModel):
                 nn.Linear(self.hidden_size, self.act_dim),
             )
         else:
-            self.predict_action = nn.Sequential(
-                *(
-                    [nn.Linear(self.hidden_size, self.act_dim)]
-                    + ([nn.Tanh()] if self.config.action_tanh else [])
-                )
-            )
+            action_predictor = []
+
+            for _ in range(self.config.num_action_pred_layers):
+                action_predictor.append(nn.Linear(self.hidden_size, self.hidden_size))
+                action_predictor.append(nn.ReLU())
+
+            action_predictor.append(nn.Linear(self.hidden_size, self.act_dim))
+            if self.config.action_tanh:
+                action_predictor.append(nn.Tanh())
+
+            self.predict_action = nn.Sequential(*action_predictor)
 
         self.predict_return = torch.nn.Linear(self.hidden_size, 1)
 
@@ -393,6 +398,11 @@ class DecisionTransformerSeparateState(TrajectoryModel):
             self.predict_action,
             self.predict_state,
             self.predict_return,
+            self.transformer,
         ]:
             for param in module.parameters():
                 param.requires_grad = False
+
+        if self.config.train_prediction_head:
+            for param in self.predict_action.parameters():
+                param.requires_grad = True
