@@ -162,12 +162,12 @@ def rollout(
             rewards = torch.cat([rewards, torch.zeros(1, device=device)])
 
             if "state" in observation_mode:
-                states = (states.to(dtype=torch.float32) - state_mean) / state_std
+                input_states = (states.to(dtype=torch.float32) - state_mean) / state_std
             else:
-                states = None
+                input_states = None
 
             action, _, agent_info = model.get_action(
-                states=states,
+                states=input_states,
                 actions=actions.to(dtype=torch.float32),
                 returns_to_go=None,
                 obj_ids=None,
