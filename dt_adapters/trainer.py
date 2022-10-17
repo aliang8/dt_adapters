@@ -340,7 +340,10 @@ class Trainer(object):
             model.transformer.set_active_adapters(task_name)
 
         if self.config.freeze_backbone:
-            model.freeze_backbone()
+            model.freeze_backbone(
+                train_prediction_head=self.config.model.train_prediction_head,
+                train_state_embeddings=self.config.model.train_state_embeddings,
+            )
 
         self.model = model.to(self.device)
         self.model.train()
@@ -586,6 +589,7 @@ class Trainer(object):
             log_eval_videos=log_eval_videos,
         )
 
+        eval_rollouts = []
         if num_processes > 0:
             # run multiple threads at the same time
             p = mp.Pool(processes=num_processes)
@@ -599,7 +603,7 @@ class Trainer(object):
             p.join()
         else:
             for i in range(num_rollouts):
-                eval_rollouts = [rollout(**rollout_kwargs)]
+                eval_rollouts.append([rollout(**rollout_kwargs)])
 
         print(
             f"done, got {len(eval_rollouts)} rollouts in {time.time() - start} seconds"

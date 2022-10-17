@@ -34,7 +34,7 @@ class RLBenchEnv(gym.Env):
         if observation_mode == "state":
             obs_config.set_all_high_dim(False)
             obs_config.set_all_low_dim(True)
-        elif observation_mode == "vision":
+        elif observation_mode == "image":
             obs_config.set_all(True)
         else:
             raise ValueError("Unrecognised observation_mode: %s." % observation_mode)
@@ -52,7 +52,7 @@ class RLBenchEnv(gym.Env):
             self.observation_space = spaces.Box(
                 low=-np.inf, high=np.inf, shape=obs.get_low_dim_data().shape
             )
-        elif observation_mode == "vision":
+        elif observation_mode == "image":
             self.observation_space = spaces.Dict(
                 {
                     "state": spaces.Box(
@@ -97,7 +97,7 @@ class RLBenchEnv(gym.Env):
         if self._observation_mode == "state":
             # return obs.get_low_dim_data()
             return {"state": ll_state}
-        elif self._observation_mode == "vision":
+        elif self._observation_mode == "image":
             image_state = {k: getattr(obs, k) for k in self.config.image_keys}
             return {"state": ll_state, **image_state}
             # return {

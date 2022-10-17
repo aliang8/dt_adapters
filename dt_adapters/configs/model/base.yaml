@@ -7,6 +7,9 @@ use_entropy: False                                         # add entropy regular
 target_entropy: False                                      # auto-tune the entropy term 
 predict_return_dist: False                                 # add additional loss for predicting return
 
+train_prediction_head: False
+train_state_embeddings: False
+
 # encoding network for the state
 state_encoder:
   hidden_size: ${model.hidden_size}                   

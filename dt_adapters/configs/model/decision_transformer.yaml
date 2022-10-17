@@ -16,7 +16,6 @@ max_return: 500
 bin_width: 5
 num_return_samples: 250
 
-train_prediction_head: True
 num_action_pred_layers: 2
 
 # configuration for the backbone model
