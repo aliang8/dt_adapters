@@ -17,7 +17,7 @@ for task_file in TASKS:
         kwargs={"task_class": task_class, "observation_mode": "state"},
     )
     register(
-        id="%s-vision-v0" % task_name,
+        id="%s-image-v0" % task_name,
         entry_point="dt_adapters.envs.rlbench_env:RLBenchEnv",
-        kwargs={"task_class": task_class, "observation_mode": "vision"},
+        kwargs={"task_class": task_class, "observation_mode": "image"},
     )

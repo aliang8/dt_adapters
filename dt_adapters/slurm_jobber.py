@@ -61,6 +61,7 @@ export LD_LIBRARY_PATH=/usr/local/cuda-10.1/lib64
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/{os.environ['USER']}/.mujoco/mujoco210/bin
 export TOKENIZERS_PARALLELISM=false 
+export QT_LOGGING_RULES='*.debug=false;qt.qpa.*=false'
 """
 
     configs = []

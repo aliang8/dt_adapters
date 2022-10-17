@@ -47,7 +47,7 @@ def rollout(
         )
     elif config.data.env_name == "rlbench":
         env = gym.make(
-            f"{config.data.eval_task}-vision-v0",
+            f"{config.data.eval_task}-image-v0",
             config=config.data,
             render_mode="rgb_array",
         )
@@ -130,6 +130,9 @@ def rollout(
                 .reshape(1, state_dim)
                 .to(device=device, dtype=torch.float32)
             )
+        else:
+            states = None
+
         if "image" in observation_mode:
             img_feats = (
                 torch.from_numpy(last_img_feats)
@@ -159,6 +162,7 @@ def rollout(
             actions = torch.cat(
                 [actions, torch.zeros((1, act_dim), device=device)], dim=0
             )
+
             rewards = torch.cat([rewards, torch.zeros(1, device=device)])
 
             if "state" in observation_mode:
