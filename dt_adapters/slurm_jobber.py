@@ -10,7 +10,13 @@ import yaml
 import general_utils
 from sklearn.model_selection import ParameterGrid
 
-NODE_GPU_MAP = {"ellie": "2080", "lucy": "1080", "ron": "1080", "titan": "6000"}
+NODE_GPU_MAP = {
+    "ellie": "2080",
+    "lucy": "1080",
+    "ron": "1080",
+    "titan": "6000",
+    "gary": "2080",
+}
 NUM_GPUS_AVAILABLE = 4
 
 import collections
@@ -50,7 +56,7 @@ HOME=/home/{os.environ['USER']}
 
 wandb login {os.environ["WANDB_API_KEY"]}
 export DATA_DIR=/home/anthony/dt_adapters/data
-export LOG_DIR=/home/anthony/dt_adapters/outputs
+export LOG_DIR={os.environ["LOG_DIR"]}
 export LD_LIBRARY_PATH=/usr/local/cuda-10.1/lib64
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/{os.environ['USER']}/.mujoco/mujoco210/bin
@@ -74,11 +80,11 @@ export TOKENIZERS_PARALLELISM=false
     chunks = list(general_utils.chunks(configs, args.num_processes_per_gpu))
 
     if args.mode == "pretraining":
-        base_cmd = "CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 -m dt_adapters.trainer --config-name=train data=[base,mw_45_5] model=[base,mlp_policy]"
+        base_cmd = "CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3.7 -m dt_adapters.trainer --config-name=train data=[base,mw_45_5] model=[base,mlp_policy]"
     elif args.mode == "online":
-        base_cmd = "CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 -m dt_adapters.trainer --config-name=online_finetune "
+        base_cmd = "CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3.7 -m dt_adapters.trainer --config-name=online_finetune "
     elif args.mode == "offline":
-        base_cmd = "CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 -m dt_adapters.trainer --config-name=offline_finetune data=[base,mw_45_5] model=[base,mlp_policy] "
+        base_cmd = "CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3.7 -m dt_adapters.trainer --config-name=offline_finetune data=[base,mw_45_5] model=[base,mlp_policy] "
 
     for i, chunk in enumerate(chunks):
         if args.run_amber:

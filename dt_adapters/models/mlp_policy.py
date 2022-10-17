@@ -28,7 +28,7 @@ class MLPPolicy(nn.Module):
 
         self.prediction_layer = nn.Sequential(*prediction_head)
 
-    def freeze_backbone(self):
+    def freeze_backbone(self, **kwargs):
         general_utils.freeze_module(self.encoder)
 
     def forward(self, states, actions, img_feats=None, obj_ids=None, **kwargs):

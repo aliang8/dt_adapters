@@ -5,7 +5,7 @@ seed: 1                                             # random seed
 save_every: 10                                      # epochs between saving model checkpoints
 eval_every: 1                                       # epochs between evaluating policy
 num_steps_per_epoch: 200                            # number of gradient updates per online rollout
-skip_first_eval: True                               # skip first evalution step
+skip_first_eval: False                              # skip first evalution step
 num_epochs: 100                                     # number of training epochs
 batch_size: 128                                   
 

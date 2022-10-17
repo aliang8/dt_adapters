@@ -70,7 +70,7 @@ class DecisionTransformerSeparateState(TrajectoryModel):
         else:
             action_predictor = []
 
-            for _ in range(self.config.num_action_pred_layers):
+            for _ in range(self.config.get("num_action_pred_layers", 0)):
                 action_predictor.append(nn.Linear(self.hidden_size, self.hidden_size))
                 action_predictor.append(nn.ReLU())
 
@@ -387,7 +387,9 @@ class DecisionTransformerSeparateState(TrajectoryModel):
 
         return action_preds[0, -1], return_preds[0, -1], {}
 
-    def freeze_backbone(self):
+    def freeze_backbone(
+        self, train_prediction_head=False, train_state_embeddings=False
+    ):
         # freeze everything
         for module in [
             self.embed_state,
@@ -398,11 +400,23 @@ class DecisionTransformerSeparateState(TrajectoryModel):
             self.predict_action,
             self.predict_state,
             self.predict_return,
-            self.transformer,
         ]:
             for param in module.parameters():
                 param.requires_grad = False
 
-        if self.config.train_prediction_head:
+        if train_prediction_head:
+            for param in self.transformer.parameters():
+                param.requires_grad = False
+
             for param in self.predict_action.parameters():
                 param.requires_grad = True
+
+        if train_state_embeddings:
+            for module in [
+                self.embed_state,
+                self.embed_action,
+                self.embed_timestep,
+                self.embed_ln,
+            ]:
+                for param in module.parameters():
+                    param.requires_grad = True

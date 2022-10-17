@@ -1,12 +1,13 @@
 data_dir: /data/anthony/dt_adapters/data/rlbench_data/mt15_v1
-data_file: rlbench_demo_feats.hdf5
+# data_file: rlbench_demo_feats.hdf5
+data_file: rlbench_demo_feats_all_10tasks.hdf5
 
 env_name: rlbench
 
 state_dim: 30
 act_dim: 8
 max_ep_len: 1000
-task: ???
+eval_task: ???
 
 ll_state_keys: 
   - joint_positions
@@ -22,14 +23,14 @@ image_keys:
   - overhead_rgb
   - overhead_depth
 
-  # - wrist_rgb
-  # - wrist_depth
-  # - front_rgb
-  # - front_depth
-  # - left_shoulder_rgb
-  # - left_shoulder_depth
-  # - right_shoulder_rgb
-  # - right_shoulder_depth
+  - wrist_rgb
+  - wrist_depth
+  - front_rgb
+  - front_depth
+  - left_shoulder_rgb
+  - left_shoulder_depth
+  - right_shoulder_rgb
+  - right_shoulder_depth
 
 train_tasks:
   - reach_target

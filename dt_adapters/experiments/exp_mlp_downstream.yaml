@@ -1,0 +1,21 @@
+general:
+    seed: [0, 1, 2]
+    exp_name: [mlp_ml45]
+    log_to_wandb: [True]
+    log_outputs: [True]
+    eval_every: [1]
+    freeze_backbone: [True]
+    load_from_ckpt: [True]
+    skip_first_eval: [False]
+    num_processes: [0]
+    model_ckpt_dir: [/home/anthony/dt_adapters/outputs/pretrain_ml45_state_larger_mlp]
+
+data:
+    obj_randomization: [True]
+    eval_task: [bin-picking-v2, hand-insert-v2, box-close-v2, door-lock-v2, door-unlock-v2]
+    data_dir: [/home/anthony/dt_adapters/data]
+    data_file: [trajectories_all_with_images_10.hdf5]
+    observation_mode: [state]
+
+model:
+    use_adapters: [False]
