@@ -6,7 +6,7 @@ env_name: rlbench
 
 state_dim: 30
 act_dim: 8
-max_ep_len: 500
+max_ep_len: 300
 eval_task: ???
 
 ll_state_keys: 
@@ -22,7 +22,6 @@ ll_state_keys:
 image_keys: 
   - overhead_rgb
   - overhead_depth
-
   - wrist_rgb
   - wrist_depth
   - front_rgb

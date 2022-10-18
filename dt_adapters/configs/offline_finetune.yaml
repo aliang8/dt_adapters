@@ -18,4 +18,4 @@ model:
   use_adapters: True  
 
 data:
-  obj_randomization: False
+  obj_randomization: True

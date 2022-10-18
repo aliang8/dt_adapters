@@ -1,0 +1,19 @@
+general:
+    seed: [0]
+    exp_name: [pretrain_dt_ml45_images]
+    log_to_wandb: [False]
+    log_outputs: [False]
+    eval_every: [0]
+
+data:
+    obj_randomization: [True]
+    data_dir: [/data/anthony/dt_adapters/data/metaworld_data]
+    data_file: [trajectories_all_images_multiview_10.hdf5]
+    observation_mode: [image]
+
+model:
+    num_action_pred_layers: [0]
+
+    state_encoder:
+        num_img_proj_layers: [0]
+        num_ll_enc_layers: [0]
