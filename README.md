@@ -121,11 +121,3 @@ To kill job on certain GPU (0)
 ```
 kill $(nvidia-smi -g 0 | awk '$5=="PID" {p=1} p {print $5}')
 ```
-
-
-DISPLAY=:0.1 python3 rlbench_dt/dataset_generator.py \
-    --save_path=/data/anthony/dt_adapters/data/rlbench_data/mt15_v1_50 \
-    --tasks=[] \
-    --processes=10 \
-    --episodes_per_task=50 \
-    --variations=2

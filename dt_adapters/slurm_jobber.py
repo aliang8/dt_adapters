@@ -1,5 +1,16 @@
 """
 Script for creating slurm files and then executing them for searching over hyperparamters
+
+# Amber
+python3 -m dt_adapters.slurm_jobber \
+    --num_processes_per_gpu=8 \
+    --run_scripts=0 \
+    --grid_files=dt_adapters/experiments/downstream_dt.yaml \
+    --lower_priority=0 \
+    --data=mw_45_5 \
+    --model=decision_transformer \
+    --config=offline_finetune \
+    --run_amber
 """
 
 import os
@@ -7,7 +18,7 @@ import glob
 import json
 import random
 import yaml
-import general_utils
+import dt_adapters.general_utils as general_utils
 from sklearn.model_selection import ParameterGrid
 
 NODE_GPU_MAP = {
@@ -80,12 +91,7 @@ export QT_LOGGING_RULES='*.debug=false;qt.qpa.*=false'
     # create individual slurm files
     chunks = list(general_utils.chunks(configs, args.num_processes_per_gpu))
 
-    if args.mode == "pretraining":
-        base_cmd = "CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3.7 -m dt_adapters.trainer --config-name=train data=[base,mw_45_5] model=[base,mlp_policy]"
-    elif args.mode == "online":
-        base_cmd = "CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3.7 -m dt_adapters.trainer --config-name=online_finetune "
-    elif args.mode == "offline":
-        base_cmd = "CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3.7 -m dt_adapters.trainer --config-name=offline_finetune data=[base,mw_45_5] model=[base,mlp_policy] "
+    base_cmd = f"CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3.7 -m dt_adapters.trainer --config-name={args.config} data=[base,{args.data}] model=[base,{args.model}] "
 
     for i, chunk in enumerate(chunks):
         if args.run_amber:
@@ -157,16 +163,28 @@ if __name__ == "__main__":
         help="run the jobs with lower priority so i can take up more gpu space",
     )
     parser.add_argument(
-        "--mode",
-        type=str,
-        default="pretraining",
-        help="pretraining | online",
-    )
-    parser.add_argument(
         "--node",
         type=str,
         default="ellie",
         help="which node on the nlp cluster to use",
+    )
+    parser.add_argument(
+        "--data",
+        type=str,
+        default="ml45_5",
+        help="data config",
+    )
+    parser.add_argument(
+        "--model",
+        type=str,
+        default="decision_transformer",
+        help="model config",
+    )
+    parser.add_argument(
+        "--config",
+        type=str,
+        default="train",
+        help="which yaml file to use for base",
     )
     parser.add_argument(
         "--grid_files",

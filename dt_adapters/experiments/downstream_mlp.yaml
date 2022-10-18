@@ -13,9 +13,6 @@ general:
 data:
     obj_randomization: [True]
     eval_task: [bin-picking-v2, hand-insert-v2, box-close-v2, door-lock-v2, door-unlock-v2]
-    data_dir: [/home/anthony/dt_adapters/data]
+    data_dir: [/data/anthony/dt_adapters/data/metaworld_data]
     data_file: [trajectories_all_with_images_10.hdf5]
     observation_mode: [state]
-
-model:
-    use_adapters: [False]
