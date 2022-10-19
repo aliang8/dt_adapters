@@ -20,6 +20,7 @@ num_data_workers: 1                                 # for data loading
 exp_name: test                                      # exp name, used for folder path and wandb group name
 log_to_wandb: False                                 # should we log the metrics to wandb
 log_outputs: True                                   # should we create a new folder and store exp output
+save_best_model: True                               # save models with the highest success rates
 
 # video configs
 log_eval_videos: True                               # should we videos of eval rollouts

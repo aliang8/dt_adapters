@@ -13,6 +13,8 @@ Clone this repo. This project has Metaworld as a submodule with additional envs.
 ```
 git clone --recursive https://github.com/aliang8/dt_adapters/tree/dev_ant/dt_adapters
 git checkout dev_ant 
+git submodule update --init --recursive
+git pull --recurse-submodules
 ```
 
 Install requirements

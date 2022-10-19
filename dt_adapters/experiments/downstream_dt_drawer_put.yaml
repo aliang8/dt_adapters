@@ -1,5 +1,5 @@
 general:
-    seed: [0, 1, 2]
+    seed: [0]
     exp_name: [dt_ml45_downstream_drawer_put]
     log_to_wandb: [True]
     log_outputs: [True]

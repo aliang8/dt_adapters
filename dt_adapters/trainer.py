@@ -82,6 +82,8 @@ class Trainer(object):
         self.setup_optimizer()
         self.total_training_iters = 0
         self.total_online_rollouts = 0
+        self.best_eval_perf = -np.inf
+        self.eval_metrics = None
 
         def loss_fn(**kwargs):
             action_pred_loss = torch.tensor(0.0)
@@ -285,17 +287,30 @@ class Trainer(object):
         )
         pprint(metrics)
         print("=" * 50)
+        self.eval_metrics = metrics
 
-    def save_model(self, epoch):
+    def save_model(self, epoch, metrics):
         if self.config.log_outputs:
             if self.config.model.use_adapters:
-                # TODO: implement save the one with best performance
+                if hasattr(self, "eval_metrics") and self.config.save_best_model:
+                    if metrics["success_rate"] > self.best_eval_perf:
+                        print(
+                            f"saving model to {self.ckpt_dir}, new best eval: {metrics['success_rate']} "
+                        )
+                        self.best_eval_perf = metrics["success_rate"]
+                    else:
+                        print(
+                            f"model eval perf: {metrics['success_rate']}, previous best: {self.best_eval_perf}, not saving"
+                        )
+                        return
+
                 # save just the adapter weights
                 self.model.transformer.save_adapter(
                     self.ckpt_dir,
                     self.config.data.eval_task,
                     meta_dict={"epoch": epoch, "config": self.config},
                 )
+
                 # log adapter info to hub
                 with open(constants.HUB_FILE, "r") as f:
                     try:
@@ -304,19 +319,20 @@ class Trainer(object):
                         print(exc)
 
                     new_adapter = {
-                        "name": self.config.data.eval_task, 
+                        "name": self.config.data.eval_task,
                         "ckpt_path": self.ckpt_dir,
-                        "epoch": epoch
+                        "epoch": epoch,
+                        "best_success_rate": self.best_eval_perf,
                     }
-                    
-                    names = [a['name'] for a in adapter_info['single_task_adapters']]
+
+                    names = [a["name"] for a in adapter_info["single_task_adapters"]]
                     index = names.index(self.config.data.eval_task)
 
                     # insert new adapter into library
                     if index == -1:
                         adapter_info["single_task_adapters"].append(new_adapter)
                     else:
-                        adapter_info['single_task_adapters'][index] = new_adapter
+                        adapter_info["single_task_adapters"][index] = new_adapter
 
                 with open(constants.HUB_FILE, "w") as f:
                     yaml.safe_dump(adapter_info, f)
@@ -375,17 +391,19 @@ class Trainer(object):
             if self.config.model.use_adapter_fusion:
                 # For now we only train a new fusion layer
                 # maybe consider training a new adapter in addition to fusion
-                adapters_to_use = OmegaConf.to_container(self.config.model.adapters_to_use)
+                adapters_to_use = OmegaConf.to_container(
+                    self.config.model.adapters_to_use
+                )
 
                 # load adapters to use
                 print("Loading adapter weights...")
                 print(f"Adapters to use: {adapters_to_use}")
-                
+
                 # check that all adapters exist
                 for adapter_name in adapters_to_use:
                     if not adapter_name in st_library:
                         raise Exception("{adapter_name} not a valid adapter")
-                
+
                 for adapter_name in adapters_to_use:
                     adapter_ckpt_path = st_library[adapter_name]
                     adapter_name = model.transformer.load_adapter(adapter_ckpt_path)
@@ -400,7 +418,9 @@ class Trainer(object):
                 model.transformer.train_adapter_fusion(fusion_layer)
             else:
                 if task_name in st_library:
-                    print(f'Trained adapter already exists for: {task_name}, will be overwriting.')
+                    print(
+                        f"Trained adapter already exists for: {task_name}, will be overwriting."
+                    )
 
                 print(f"Training new adapter for: {task_name}")
 
@@ -424,7 +444,6 @@ class Trainer(object):
         self.model.train()
         print(self.model)
         print("final model params: ", general_utils.count_parameters(model))
-        import ipdb; ipdb.set_trace()
 
         # load ll_state and image encoding networks
         if "image" in self.config.data.observation_mode:
@@ -584,7 +603,7 @@ class Trainer(object):
 
             # save model
             if epoch % self.config.save_every == 0 and epoch != 0:
-                self.save_model(epoch)
+                self.save_model(epoch, self.eval_metrics)
 
             # run evaluation for online_training
             if self.config.eval_every > 0 and epoch % self.config.eval_every == 0:
@@ -639,7 +658,7 @@ class Trainer(object):
                     self.total_training_iters += 1
 
         # save very last epoch
-        self.save_model(epoch)
+        self.save_model(epoch, self.eval_metrics)
 
     def mp_rollout(
         self,
