@@ -663,7 +663,7 @@ class Trainer(object):
             p.join()
         else:
             for i in range(num_rollouts):
-                eval_rollouts.append([rollout(**rollout_kwargs)])
+                eval_rollouts.append(rollout(**rollout_kwargs))
 
         print(
             f"done, got {len(eval_rollouts)} rollouts in {time.time() - start} seconds"
