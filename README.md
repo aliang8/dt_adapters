@@ -5,17 +5,14 @@ Using decision transformers as the backbone for pretraining offline a behavior p
 # Project Setup
 
 Setup conda env:
-
 ```
 conda create -n dt_adapters python=3.7.9
 ```
 
-Install metaworld 
-
+Clone this repo. This project has Metaworld as a submodule with additional envs.
 ```
-git clone https://github.com/rlworkgroup/metaworld.git
-cd metaworld 
-pip install -e .
+git clone --recursive https://github.com/aliang8/dt_adapters/tree/dev_ant/dt_adapters
+git checkout dev_ant 
 ```
 
 Install requirements
@@ -25,6 +22,7 @@ pip install -r requirements.txt
 
 Some exports needed for when running mujoco_py
 ```
+export ROOT_DIR=/home/anthony/dt_adapters
 export DATA_DIR=/home/anthony/dt_adapters/data
 export LOG_DIR=/home/anthony/dt_adapters/outputs
 mkdir -p ${LOG_DIR}/slurm_outputs

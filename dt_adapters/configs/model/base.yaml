@@ -35,9 +35,7 @@ use_adapters: False                                        # do we add an adapte
 adapter_task_name: ${data.eval_task}                       # this should be the task name
 
 use_adapter_fusion: False                                  # load existing adapters for fusion
-adapters_to_use: 
-  - drawer-open-v2
-  - pick-place-v2
+adapters_to_use: ???                                       # which pretrained adapters do we want to use, see hub file for all the available adapters
 
 adapter:                                    
   config: pfeiffer+inv            
