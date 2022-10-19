@@ -1,6 +1,6 @@
 general:
     seed: [0, 1, 2]
-    exp_name: [dt_ml45_downstream_fusion]
+    exp_name: [dt_ml45_downstream_drawer_put]
     log_to_wandb: [True]
     log_outputs: [True]
     eval_every: [1]
@@ -12,12 +12,10 @@ general:
 
 data:
     obj_randomization: [True]
-    eval_task: [drawer-put-block-v2]
+    eval_task: [drawer-open-v2, pick-place-v2]
     data_dir: [/home/anthony/dt_adapters/data/metaworld_data]
     data_file: [trajectories_all_with_images_10.hdf5]
     observation_mode: [state]
 
 model:
     use_adapters: [True]
-    use_adapter_fusion: [True]
-    adapters_to_use: [[drawer-open-v2,pick-place-v2]]

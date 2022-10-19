@@ -19,6 +19,7 @@ OBJECTS_TO_ENV = {
         "shelf_place_v2",
         "sweep_into_v2",
         "sweep_v2",
+        "drawer_put_block_v2"
     ],
     "top_link": ["box_close_v2"],
     "coffee_button_start": ["coffee_button_v2"],
@@ -26,7 +27,7 @@ OBJECTS_TO_ENV = {
     "dial": ["dial_turn_v2"],
     "door": ["door_close_v2", "door_open_v2"],  # can we merge these together?
     "door_link": ["door_lock_v2", "door_unlock_v2", "door_v2"],
-    "drawer_link": ["drawer_close_v2", "drawer_open_v2"],
+    "drawer_link": ["drawer_close_v2", "drawer_open_v2", "drawer_put_block_v2"],
     "faucet_handle": ["faucet_close_v2", "faucet_open_v2"],
     "hammer": ["hammer_v2"],
     "handle": [

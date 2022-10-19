@@ -4,6 +4,7 @@ num_processes: 10
 log_to_wandb: False
 demos_per_env: 10
 # filter_envs_by_obj: 
-data_dir: /data/anthony/dt_adapters/data/
+data_dir: /home/anthony/dt_adapters/data/metaworld_data/
 data_file: trajectories_all_with_images_${demos_per_env}.hdf5
 image_size: 64                                                    # for encoding depth images
+tasks: ???
