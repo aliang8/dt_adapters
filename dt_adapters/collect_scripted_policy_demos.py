@@ -3,6 +3,12 @@ CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 dt_adapters/collect_scripted_policy_de
     --config-name=data_collection \
     data_file=trajectories_all_images_multiview_10.hdf5 \
     multiprocessing=False
+
+CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 dt_adapters/collect_scripted_policy_demos.py \
+    --config-name=data_collection \
+    data_file=trajectories_compositional.hdf5 \
+    multiprocessing=False \
+    tasks=[drawer-put-block-v2]
 """
 from PIL import Image
 import numpy as np
@@ -73,6 +79,8 @@ def rollout(
 
         episode_length += 1
         if terminate:
+            print('SUCCESS')
+            print(episode_length)
             dones.append(1)
             traj_success = True
             break
@@ -191,21 +199,13 @@ def main(config):
     else:
         wandb_run = None
 
-    envs = ENVS_AND_SCRIPTED_POLICIES
-
-    # if DEBUG:
-    #     random.shuffle(envs)
-    #     envs = envs[:2]
-
-    # if FILTER_ENVS_BY_OBJ:
-    #     env_names = OBJECTS_TO_ENV[FILTER_ENVS_BY_OBJ]
-    #     _envs = []
-    #     for row in envs:
-    #         if row[0].replace("-", "_") in env_names:
-    #             _envs.append(row)
-    #     envs = _envs
-
+    if config.tasks:
+        envs = [env for env in ENVS_AND_SCRIPTED_POLICIES if env[0] in config.tasks]
+    else:
+        envs = ENVS_AND_SCRIPTED_POLICIES
     print(len(envs))
+
+    # import ipdb; ipdb.set_trace()
 
     if config.multiprocessing and not config.debug:
         torch.multiprocessing.set_start_method("spawn")

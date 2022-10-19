@@ -26,6 +26,7 @@ ENVS_AND_SCRIPTED_POLICIES = [
     ["door-unlock-v2", SawyerDoorUnlockV2Policy(), 0.1, 0.97],
     ["drawer-close-v2", SawyerDrawerCloseV2Policy(), 0.1, 0.99],
     ["drawer-open-v2", SawyerDrawerOpenV2Policy(), 0.1, 0.97],
+    ["drawer-put-block-v2", SawyerDrawerPutBlockV2Policy(), 0.0, 0.97],
     ["faucet-close-v2", SawyerFaucetCloseV2Policy(), 0.1, 1.0],
     ["faucet-open-v2", SawyerFaucetOpenV2Policy(), 0.1, 0.99],
     ["hammer-v2", SawyerHammerV2Policy(), 0.1, 0.96],

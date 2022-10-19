@@ -289,7 +289,7 @@ class Trainer(object):
     def save_model(self, epoch):
         if self.config.log_outputs:
             if self.config.model.use_adapters:
-
+                # TODO: implement save the one with best performance
                 # save just the adapter weights
                 self.model.transformer.save_adapter(
                     self.ckpt_dir,
@@ -303,10 +303,20 @@ class Trainer(object):
                     except yaml.YAMLError as exc:
                         print(exc)
 
-                    new_adapter = general_utils.AttrDict(
-                        name=self.config.data.eval_task, ckpt_path=self.ckpt_dir
-                    )
-                    adapter_info["single_task_adapters"].append(new_adapter)
+                    new_adapter = {
+                        "name": self.config.data.eval_task, 
+                        "ckpt_path": self.ckpt_dir,
+                        "epoch": epoch
+                    }
+                    
+                    names = [a['name'] for a in adapter_info['single_task_adapters']]
+                    index = names.index(self.config.data.eval_task)
+
+                    # insert new adapter into library
+                    if index == -1:
+                        adapter_info["single_task_adapters"].append(new_adapter)
+                    else:
+                        adapter_info['single_task_adapters'][index] = new_adapter
 
                 with open(constants.HUB_FILE, "w") as f:
                     yaml.safe_dump(adapter_info, f)
@@ -349,10 +359,10 @@ class Trainer(object):
                 except yaml.YAMLError as exc:
                     print(exc)
 
-                single_task_adapters = adapter_info["single_task"]
+                single_task_adapters = adapter_info["single_task_adapters"]
                 print("-" * 50)
-                print(f"{len(single_task_adapters)} adapters available: ")
-                st_library = {a["name"]: a["ckpt_path"] for a in single_task_adapters]
+                st_library = {a["name"]: a["ckpt_path"] for a in single_task_adapters}
+                print(f"{len(st_library)} adapters available: ")
                 pprint(st_library)
                 print("-" * 50)
 
@@ -365,7 +375,7 @@ class Trainer(object):
             if self.config.model.use_adapter_fusion:
                 # For now we only train a new fusion layer
                 # maybe consider training a new adapter in addition to fusion
-                adapters_to_use = self.config.model.adapters_to_use
+                adapters_to_use = OmegaConf.to_container(self.config.model.adapters_to_use)
 
                 # load adapters to use
                 print("Loading adapter weights...")
@@ -378,15 +388,20 @@ class Trainer(object):
                 
                 for adapter_name in adapters_to_use:
                     adapter_ckpt_path = st_library[adapter_name]
-                    adapter_name = model.load_adapter(adapter_ckpt_path)
+                    adapter_name = model.transformer.load_adapter(adapter_ckpt_path)
 
                 model.transformer.add_adapter_fusion(adapters_to_use)
 
                 # set the fusion layer as active
-                model.transformer.set_active_adapters(ac.Fuse(*adapters_to_use))
+                fusion_layer = ac.Fuse(*adapters_to_use)
+                model.transformer.set_active_adapters(fusion_layer)
 
                 # make sure all the other weights are frozen except fusion layer
+                model.transformer.train_adapter_fusion(fusion_layer)
             else:
+                if task_name in st_library:
+                    print(f'Trained adapter already exists for: {task_name}, will be overwriting.')
+
                 print(f"Training new adapter for: {task_name}")
 
                 # train a new set of adapter weights
@@ -409,6 +424,7 @@ class Trainer(object):
         self.model.train()
         print(self.model)
         print("final model params: ", general_utils.count_parameters(model))
+        import ipdb; ipdb.set_trace()
 
         # load ll_state and image encoding networks
         if "image" in self.config.data.observation_mode:
