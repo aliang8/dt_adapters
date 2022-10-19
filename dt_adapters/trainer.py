@@ -19,6 +19,7 @@ import random
 import torch
 import glob
 import h5py
+import yaml
 import hydra
 import numpy as np
 from pprint import pprint
@@ -42,9 +43,11 @@ import dt_adapters.mw_utils as mw_utils
 import dt_adapters.eval_utils as eval_utils
 from dt_adapters.data.utils import get_visual_encoders
 from dt_adapters.rollout import rollout
+import dt_adapters.constants as constants
 
 
 from transformers.adapters.configuration import AdapterConfig
+import transformers.adapters.composition as ac
 
 from garage.envs import GymEnv
 from garage.np import discount_cumsum, stack_tensor_dict_list
@@ -286,19 +289,34 @@ class Trainer(object):
     def save_model(self, epoch):
         if self.config.log_outputs:
             if self.config.model.use_adapters:
+
                 # save just the adapter weights
                 self.model.transformer.save_adapter(
                     self.ckpt_dir,
                     self.config.data.eval_task,
                     meta_dict={"epoch": epoch, "config": self.config},
                 )
+                # log adapter info to hub
+                with open(constants.HUB_FILE, "r") as f:
+                    try:
+                        adapter_info = yaml.safe_load(f)
+                    except yaml.YAMLError as exc:
+                        print(exc)
 
-            path = os.path.join(self.ckpt_dir, f"epoch_{epoch:03d}.pt")
-            print(f"saving model to {path}")
-            save_dict = self.model.state_dict()
-            save_dict["epoch"] = epoch
-            save_dict["config"] = self.config
-            torch.save(save_dict, path)
+                    new_adapter = general_utils.AttrDict(
+                        name=self.config.data.eval_task, ckpt_path=self.ckpt_dir
+                    )
+                    adapter_info["single_task_adapters"].append(new_adapter)
+
+                with open(constants.HUB_FILE, "w") as f:
+                    yaml.safe_dump(adapter_info, f)
+            else:
+                path = os.path.join(self.ckpt_dir, f"epoch_{epoch:03d}.pt")
+                print(f"saving model to {path}")
+                save_dict = self.model.state_dict()
+                save_dict["epoch"] = epoch
+                save_dict["config"] = self.config
+                torch.save(save_dict, path)
 
     def setup_model(self):
         if self.config.model.model_cls == "decision_transformer":
@@ -324,20 +342,62 @@ class Trainer(object):
         print("base model params: ", general_utils.count_parameters(model))
 
         if self.config.model.use_adapters:
+            # Look at what trained adapters are already available
+            with open(constants.HUB_FILE, "r") as f:
+                try:
+                    adapter_info = yaml.safe_load(f)
+                except yaml.YAMLError as exc:
+                    print(exc)
+
+                single_task_adapters = adapter_info["single_task"]
+                print("-" * 50)
+                print(f"{len(single_task_adapters)} adapters available: ")
+                st_library = {a["name"]: a["ckpt_path"] for a in single_task_adapters]
+                pprint(st_library)
+                print("-" * 50)
+
             task_name = self.config.model.adapter_task_name
             cfg = self.config.model.adapter
             cfg = OmegaConf.to_container(cfg)
             cfg["nonlinearity"] = None
             cfg["reduction_factor"] = None
 
-            adapter_config = AdapterConfig.load(**cfg)
-            model.transformer.add_adapter(task_name, config=adapter_config)
+            if self.config.model.use_adapter_fusion:
+                # For now we only train a new fusion layer
+                # maybe consider training a new adapter in addition to fusion
+                adapters_to_use = self.config.model.adapters_to_use
 
-            # freeze all model weights except of those of this adapter
-            model.transformer.train_adapter([task_name])
+                # load adapters to use
+                print("Loading adapter weights...")
+                print(f"Adapters to use: {adapters_to_use}")
+                
+                # check that all adapters exist
+                for adapter_name in adapters_to_use:
+                    if not adapter_name in st_library:
+                        raise Exception("{adapter_name} not a valid adapter")
+                
+                for adapter_name in adapters_to_use:
+                    adapter_ckpt_path = st_library[adapter_name]
+                    adapter_name = model.load_adapter(adapter_ckpt_path)
 
-            # set the adapters to be used in every forward pass
-            model.transformer.set_active_adapters(task_name)
+                model.transformer.add_adapter_fusion(adapters_to_use)
+
+                # set the fusion layer as active
+                model.transformer.set_active_adapters(ac.Fuse(*adapters_to_use))
+
+                # make sure all the other weights are frozen except fusion layer
+            else:
+                print(f"Training new adapter for: {task_name}")
+
+                # train a new set of adapter weights
+                adapter_config = AdapterConfig.load(**cfg)
+                model.transformer.add_adapter(task_name, config=adapter_config)
+
+                # freeze all model weights except of those of this adapter
+                model.transformer.train_adapter([task_name])
+
+                # set the adapters to be used in every forward pass
+                model.transformer.set_active_adapters(task_name)
 
         if self.config.freeze_backbone:
             model.freeze_backbone(
