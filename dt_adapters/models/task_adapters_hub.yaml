@@ -1,0 +1,9 @@
+# storage for all the trained adapters 
+single_task_adapters:
+- ckpt_path: hello
+  name: hello
+- ckpt_path: hello2
+  name: hello
+
+fusion_layers:
+- ckpt_path: hello

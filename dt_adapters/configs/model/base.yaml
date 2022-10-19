@@ -33,6 +33,12 @@ state_encoder:
 # adapter configuration
 use_adapters: False                                        # do we add an adapter during training
 adapter_task_name: ${data.eval_task}                       # this should be the task name
+
+use_adapter_fusion: False                                  # load existing adapters for fusion
+adapters_to_use: 
+  - drawer-open-v2
+  - pick-place-v2
+
 adapter:                                    
   config: pfeiffer+inv            
   nonlinearity: none 
