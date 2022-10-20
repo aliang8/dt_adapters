@@ -1,8 +1,9 @@
 """
 CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 dt_adapters/collect_scripted_policy_demos.py \
     --config-name=data_collection \
-    data_file=trajectories_all_images_multiview_10.hdf5 \
-    multiprocessing=False
+    data_file=trajectories_all_images_multiview_50.hdf5 \
+    multiprocessing=True \
+    demos_per_env=50 
 
 CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 dt_adapters/collect_scripted_policy_demos.py \
     --config-name=data_collection \
@@ -79,7 +80,7 @@ def rollout(
 
         episode_length += 1
         if terminate:
-            print('SUCCESS')
+            print("SUCCESS")
             print(episode_length)
             dones.append(1)
             traj_success = True
