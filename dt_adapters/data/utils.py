@@ -21,7 +21,7 @@ def preprocess_obs(config, obs):
 def extract_image_feats(
     img_obs, img_preprocessor, img_encoder, depth_img_preprocessor, depth_img_encoder
 ):
-    all_img_feats = []
+    all_img_feats = {}
     for k, imgs in img_obs.items():
         if "rgb" in k:
             img_feat = get_image_feats(
@@ -37,8 +37,8 @@ def extract_image_feats(
                 depth_img_encoder,
                 "resnet",
             )
-        all_img_feats.append(img_feat)
-    all_img_feats = np.concatenate(all_img_feats, axis=-1)
+        all_img_feats[k] = img_feat
+    # all_img_feats = np.concatenate(all_img_feats, axis=-1)
     return all_img_feats
 
 

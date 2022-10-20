@@ -1,10 +1,10 @@
 """ 
-CUDA_VISIBLE_DEVICES=2 DISPLAY=:0.2 python3 dt_adapters/data/process_rlbench_data.py \
+CUDA_VISIBLE_DEVICES=3 DISPLAY=:0.2 python3 dt_adapters/data/process_rlbench_data.py \
     --config-name=train \
     data=[base,rlbench] \
     model=[base,decision_transformer] \
-    data.data_dir=/data/anthony/dt_adapters/data/rlbench_data/mt15_v1_50 \
-    data.data_file=rlbench_demo_feats.hdf5 \
+    data.data_dir=/data/anthony/dt_adapters/data/rlbench_data/mt15_v1 \
+    data.data_file=rlbench_demo_feats_all_10tasks.hdf5
 """
 
 import os
@@ -94,11 +94,14 @@ def process_feats(config):
                 depth_img_encoder,
             )
 
+            # import ipdb; ipdb.set_trace()
             # write to file
             g = hf.create_group(f"{task_name}/demo_{demo_idx}")
             g.create_dataset("states", data=states)
             g.create_dataset("actions", data=actions)
-            g.create_dataset("img_feats", data=img_feats)
+            g_img = g.create_group("img_feats")
+            for k, feat in img_feats.items():
+                g_img.create_dataset(f"{k}", data=feat)
     hf.close()
 
 

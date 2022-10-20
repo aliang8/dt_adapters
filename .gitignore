@@ -19,3 +19,5 @@ outputs/*
 metaworld/
 *.csv
 *.egg-info/
+PyRep
+RLBench

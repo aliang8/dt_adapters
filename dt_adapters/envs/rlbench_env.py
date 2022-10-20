@@ -31,10 +31,10 @@ class RLBenchEnv(gym.Env):
         self._observation_mode = observation_mode
         self._render_mode = render_mode
         obs_config = ObservationConfig()
-        if observation_mode == "state":
+        if  "state" in observation_mode:
             obs_config.set_all_high_dim(False)
             obs_config.set_all_low_dim(True)
-        elif observation_mode == "image":
+        elif "image" in observation_mode:
             obs_config.set_all(True)
         else:
             raise ValueError("Unrecognised observation_mode: %s." % observation_mode)
@@ -62,13 +62,18 @@ class RLBenchEnv(gym.Env):
                         low=0, high=1, shape=obs.left_shoulder_rgb.shape
                     ),
                     "left_shoulder_depth": spaces.Box(
-                        low=0, high=1, shape=obs.left_shoulder_rgb.shape
+                        low=0, high=1, shape=obs.left_shoulder_depth.shape
                     ),
                     "right_shoulder_rgb": spaces.Box(
                         low=0, high=1, shape=obs.right_shoulder_rgb.shape
                     ),
+                    "right_shoulder_depth": spaces.Box(
+                        low=0, high=1, shape=obs.right_shoulder_depth.shape
+                    ),
                     "wrist_rgb": spaces.Box(low=0, high=1, shape=obs.wrist_rgb.shape),
+                    "wrist_depth": spaces.Box(low=0, high=1, shape=obs.wrist_depth.shape),
                     "front_rgb": spaces.Box(low=0, high=1, shape=obs.front_rgb.shape),
+                    "front_depth": spaces.Box(low=0, high=1, shape=obs.front_depth.shape),
                     "overhead_rgb": spaces.Box(
                         low=0, high=1, shape=obs.overhead_rgb.shape
                     ),

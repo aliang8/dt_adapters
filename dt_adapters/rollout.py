@@ -46,6 +46,8 @@ def rollout(
             observation_mode=observation_mode,
         )
     elif config.data.env_name == "rlbench":
+        # import ipdb; ipdb.set_trace()
+
         env = gym.make(
             f"{config.data.eval_task}-image-v0",
             config=config.data,
@@ -66,7 +68,7 @@ def rollout(
     with torch.no_grad():
         start = time.time()
 
-        if observation_mode == "image":
+        if "image" in observation_mode:
             # not sure why i can't pickle this stuff
             img_preprocessor = CLIPProcessor.from_pretrained(
                 "openai/clip-vit-base-patch32"

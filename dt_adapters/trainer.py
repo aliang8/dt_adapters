@@ -259,6 +259,7 @@ class Trainer(object):
             attend_to_rtg=attend_to_rtg,
             log_eval_videos=log_eval_videos,
         )
+        # import ipdb; ipdb.set_trace()
         eval_rollouts = [self.update_path(path) for path in eval_rollouts]
 
         # compute metrics and log
@@ -603,7 +604,7 @@ class Trainer(object):
             p.join()
         else:
             for i in range(num_rollouts):
-                eval_rollouts.append([rollout(**rollout_kwargs)])
+                eval_rollouts.append(rollout(**rollout_kwargs))
 
         print(
             f"done, got {len(eval_rollouts)} rollouts in {time.time() - start} seconds"
