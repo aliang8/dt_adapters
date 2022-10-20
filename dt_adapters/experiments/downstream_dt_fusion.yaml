@@ -14,7 +14,7 @@ data:
     obj_randomization: [True]
     eval_task: [drawer-put-block-v2]
     data_dir: [/home/anthony/dt_adapters/data/metaworld_data]
-    data_file: [trajectories_all_with_images_10.hdf5]
+    data_file: [trajectories_compositional_10.hdf5]
     observation_mode: [state]
 
 model:
