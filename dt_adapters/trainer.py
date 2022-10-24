@@ -35,7 +35,7 @@ from torch.utils.data import Dataset, Sampler, RandomSampler
 
 
 from dt_adapters.data.demo_dataset import DemoDataset
-from dt_adapters.models.decision_transformer import DecisionTransformerSeparateState
+from dt_adapters.models.transformer_policy import TransformerPolicy
 from dt_adapters.models.mlp_policy import MLPPolicy
 from dt_adapters.sampler import ImportanceWeightBatchSampler
 import dt_adapters.general_utils as general_utils
@@ -251,13 +251,15 @@ class Trainer(object):
             }
         )
 
-    def eval(self, epoch):
+    def eval(self, epoch, task=None):
         print("running eval")
         log_eval_videos = (
             epoch % self.config.log_eval_videos_every == 0 or self.config.mode == "eval"
         )
         attend_to_rtg = True if self.config.online_training else False
+        task = task if task is not None else self.config.data.eval_task
         eval_rollouts = self.mp_rollout(
+            task,
             self.config.num_processes,
             self.config.num_eval_rollouts,
             use_means=True,
@@ -304,12 +306,19 @@ class Trainer(object):
                         )
                         return
 
-                # save just the adapter weights
-                self.model.transformer.save_adapter(
-                    self.ckpt_dir,
-                    self.config.data.eval_task,
-                    meta_dict={"epoch": epoch, "config": self.config},
-                )
+                if self.config.model.use_adapter_fusion:
+                    # save the fusion layer
+                    self.model.save_adapter_fusion(
+                        self.ckpt_dir, self.config.model.adapters_to_use
+                    )
+                    self.model.save_all_adapters(self.ckpt_dir)
+                else:
+                    # save just the adapter weights
+                    self.model.transformer.save_adapter(
+                        self.ckpt_dir,
+                        self.config.data.eval_task,
+                        meta_dict={"epoch": epoch, "config": self.config},
+                    )
 
                 # log adapter info to hub
                 with open(constants.HUB_FILE, "r") as f:
@@ -318,6 +327,12 @@ class Trainer(object):
                     except yaml.YAMLError as exc:
                         print(exc)
 
+                    key = (
+                        "single_task_adapters"
+                        if not self.config.model.use_adapters
+                        else "adapter_fusion_layers"
+                    )
+
                     new_adapter = {
                         "name": self.config.data.eval_task,
                         "ckpt_path": self.ckpt_dir,
@@ -325,14 +340,14 @@ class Trainer(object):
                         "best_success_rate": self.best_eval_perf,
                     }
 
-                    names = [a["name"] for a in adapter_info["single_task_adapters"]]
+                    names = [a["name"] for a in adapter_info[key]]
                     index = names.index(self.config.data.eval_task)
 
                     # insert new adapter into library
                     if index == -1:
-                        adapter_info["single_task_adapters"].append(new_adapter)
+                        adapter_info[key].append(new_adapter)
                     else:
-                        adapter_info["single_task_adapters"][index] = new_adapter
+                        adapter_info[key][index] = new_adapter
 
                 with open(constants.HUB_FILE, "w") as f:
                     yaml.safe_dump(adapter_info, f)
@@ -346,7 +361,7 @@ class Trainer(object):
 
     def setup_model(self):
         if self.config.model.model_cls == "decision_transformer":
-            model_cls = DecisionTransformerSeparateState
+            model_cls = TransformerPolicy
         elif self.config.model.model_cls == "mlp_policy":
             model_cls = MLPPolicy
 
@@ -406,6 +421,7 @@ class Trainer(object):
 
                 for adapter_name in adapters_to_use:
                     adapter_ckpt_path = st_library[adapter_name]
+                    print(f"Loading {adapter_name} from {adapter_ckpt_path}")
                     adapter_name = model.transformer.load_adapter(adapter_ckpt_path)
 
                 model.transformer.add_adapter_fusion(adapters_to_use)
@@ -493,21 +509,15 @@ class Trainer(object):
 
             action_target = torch.clone(batch["actions"])
 
-            (
-                _,
-                action_preds,
-                return_preds,
-                action_log_probs,
-                entropies,
-            ) = self.model.forward(
+            model_out = self.model.forward(
                 **batch,
                 target_actions=action_target,
                 use_means=False,  # sample during training
             )
 
-            act_dim = action_preds.shape[2]
+            act_dim = model_out["action_preds"].shape[2]
             mask = batch["attention_mask"].reshape(-1) > 0
-            action_preds = action_preds.reshape(-1, act_dim)[mask]
+            action_preds = model_out["action_preds"].reshape(-1, act_dim)[mask]
             action_target = action_target.reshape(-1, act_dim)[mask]
 
             loss_fn_inputs = {
@@ -518,8 +528,8 @@ class Trainer(object):
             }
 
             if self.config.model.stochastic:
-                action_log_probs = action_log_probs.reshape(-1)[mask]
-                entropies = entropies.reshape(-1)[mask]
+                action_log_probs = model_out["action_log_probs"].reshape(-1)[mask]
+                entropies = model_out["entropies"].reshape(-1)[mask]
                 loss_fn_inputs.update(
                     {
                         "a_log_probs": action_log_probs,
@@ -662,6 +672,7 @@ class Trainer(object):
 
     def mp_rollout(
         self,
+        task,
         num_processes,
         num_rollouts,
         use_means=True,
@@ -672,6 +683,7 @@ class Trainer(object):
         start = time.time()
 
         rollout_kwargs = general_utils.AttrDict(
+            task=task,
             config=self.config,
             model=self.model,
             img_encoder=self.img_encoder,
