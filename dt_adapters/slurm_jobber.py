@@ -3,11 +3,11 @@ Script for creating slurm files and then executing them for searching over hyper
 
 # Amber
 python3 -m dt_adapters.slurm_jobber \
-    --num_processes_per_gpu=8 \
+    --num_processes_per_gpu=1 \
     --run_scripts=0 \
-    --grid_files=dt_adapters/experiments/downstream_dt.yaml \
+    --grid_files=dt_adapters/experiments/cl_from_scratch.yaml \
     --lower_priority=0 \
-    --data=mw_45_5 \
+    --data=mw_40_10_cl \
     --model=decision_transformer \
     --config=offline_finetune \
     --run_amber
@@ -91,7 +91,7 @@ export QT_LOGGING_RULES='*.debug=false;qt.qpa.*=false'
     # create individual slurm files
     chunks = list(general_utils.chunks(configs, args.num_processes_per_gpu))
 
-    base_cmd = f"CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3.7 -m dt_adapters.trainer --config-name={args.config} data=[base,{args.data}] model=[base,{args.model}] "
+    base_cmd = f"CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3.7 -m dt_adapters.cl_trainer --config-name={args.config} data=[base,{args.data}] model=[base,{args.model}] "
 
     for i, chunk in enumerate(chunks):
         if args.run_amber:

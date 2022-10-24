@@ -21,8 +21,8 @@ state_encoder:
   clip_feat_dim: 768                                       # output feature dim of CLIP vision model
   resnet_feat_dim: 1000
   image_keys: ${data.image_keys}                           # keys to different image inputs (e.g. overhead_rgb, overhead_depth, etc)
-  num_img_proj_layers: 3                                   # number of mlp projection layers after vision encoder
-  num_ll_enc_layers: 3                                     # number of mlp projection layers after ll state encoder
+  num_img_proj_layers: 0                                   # number of mlp projection layers after vision encoder
+  num_ll_enc_layers: 0                                     # number of mlp projection layers after ll state encoder
 
   # some extra params for metaworld
   pos_hand: 3

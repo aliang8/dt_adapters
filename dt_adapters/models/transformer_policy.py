@@ -10,6 +10,7 @@ from dt_adapters.models.model import TrajectoryModel
 from dt_adapters.models.trajectory_gpt2 import TrajectoryGPT2
 from dt_adapters.models.state_embedding_net import StateEmbeddingNet
 from dt_adapters.mw_constants import OBJECTS
+import dt_adapters.general_utils as general_utils
 
 from collections import OrderedDict
 
@@ -18,7 +19,7 @@ from torch.distributions.transformed_distribution import TransformedDistribution
 from torch.distributions.transforms import TanhTransform
 
 
-class DecisionTransformerSeparateState(TrajectoryModel):
+class TransformerPolicy(TrajectoryModel):
     def __init__(self, config, **kwargs):
         self.config = config
 
@@ -167,6 +168,12 @@ class DecisionTransformerSeparateState(TrajectoryModel):
             inputs_embeds=stacked_inputs,
             attention_mask=stacked_attention_mask,
         )
+
+        if hasattr(transformer_outputs, "adapter_fusion_attentions"):
+            adapter_fusion_attentions = transformer_outputs.adapter_fusion_attentions
+        else:
+            adapter_fusion_attentions = None
+
         x = transformer_outputs["last_hidden_state"]
 
         # reshape x so that the second dimension corresponds to the original
@@ -243,7 +250,15 @@ class DecisionTransformerSeparateState(TrajectoryModel):
         else:
             action_preds = self.predict_action(state_reps)
 
-        return state_preds, action_preds, return_preds, action_log_probs, entropies
+        out = general_utils.AttrDict(
+            state_preds=state_preds,
+            action_preds=action_preds,
+            return_preds=return_preds,
+            action_log_probs=action_log_probs,
+            entropies=entropies,
+            adapter_fusion_attentions=adapter_fusion_attentions,
+        )
+        return out
 
     def reset(self):
         pass
@@ -370,7 +385,7 @@ class DecisionTransformerSeparateState(TrajectoryModel):
                     dim=1,
                 ).to(dtype=torch.float32)
 
-        _, action_preds, return_preds, _, _ = self.forward(
+        model_out = self.forward(
             states=states,
             actions=actions,
             timesteps=timesteps,
@@ -385,7 +400,7 @@ class DecisionTransformerSeparateState(TrajectoryModel):
             **kwargs,
         )
 
-        return action_preds[0, -1], return_preds[0, -1], {}
+        return model_out["action_preds"][0, -1], model_out["return_preds"][0, -1], {}
 
     def freeze_backbone(
         self, train_prediction_head=False, train_state_embeddings=False

@@ -14,8 +14,5 @@ general:
   stage: finetuning
   freeze_backbone: True
 
-model:
-  use_adapters: True  
-
 data:
   obj_randomization: True

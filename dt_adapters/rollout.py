@@ -26,6 +26,7 @@ from dt_adapters.data.process_rlbench_data import extract_image_feats
 
 
 def rollout(
+    task,
     config,
     model,
     img_encoder,
@@ -40,14 +41,14 @@ def rollout(
     observation_mode = config.data.observation_mode
     if config.data.env_name == "metaworld":
         env = mw_utils.initialize_env(
-            task=config.data.eval_task,
+            task=task,
             obj_randomization=config.data.obj_randomization,
             hide_goal=False,
             observation_mode=observation_mode,
         )
     elif config.data.env_name == "rlbench":
         env = gym.make(
-            f"{config.data.eval_task}-image-v0",
+            f"{task}-image-v0",
             config=config.data,
             render_mode="rgb_array",
         )
