@@ -4,7 +4,7 @@ general:
     log_to_wandb: [True]
     log_outputs: [True]
     eval_every: [2]
-    freeze_backbone: [True]
+    freeze_backbone: [False]
     load_from_ckpt: [False]
     skip_first_eval: [False]
     num_processes: [0]

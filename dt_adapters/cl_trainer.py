@@ -28,6 +28,7 @@ from collections import OrderedDict
 from omegaconf import OmegaConf
 import torch.multiprocessing as mp
 from functools import partial
+from pathlib import Path
 
 
 from torch.utils.data import DataLoader
@@ -104,20 +105,8 @@ class CLTrainer(Trainer):
         print("=" * 50)
         self.eval_metrics = metrics
 
-    def save_model(self, epoch, metrics):
+    def save_model(self, epoch):
         if self.config.log_outputs:
-            if hasattr(self, "eval_metrics") and self.config.save_best_model:
-                if metrics["success_rate"] > self.best_eval_perf:
-                    print(
-                        f"saving model to {self.ckpt_dir}, new best eval: {metrics['success_rate']} "
-                    )
-                    self.best_eval_perf = metrics["success_rate"]
-                else:
-                    print(
-                        f"model eval perf: {metrics['success_rate']}, previous best: {self.best_eval_perf}, not saving"
-                    )
-                    return
-
             if self.config.model.use_adapters:
                 if self.config.model.use_adapter_fusion:
                     # save the fusion layer
@@ -165,15 +154,20 @@ class CLTrainer(Trainer):
                 with open(constants.HUB_FILE, "w") as f:
                     yaml.safe_dump(adapter_info, f)
             else:
-                path = os.path.join(
-                    self.ckpt_dir, f"{self.current_task}_epoch_{epoch:03d}.pt"
-                )
+                path = os.path.join(self.ckpt_dir, f"{self.current_task}_latest.pt")
                 print(f"saving model to {path}")
                 save_dict = self.model.state_dict()
                 save_dict["epoch"] = epoch
                 save_dict["config"] = self.config
-                save_dict["success_rate"] = metrics["success_rate"]
                 torch.save(save_dict, path)
+
+                # also save the one with best performance
+                if self.eval_metrics["success_rate"] > self.best_eval_perf:
+                    print("saving new best model, {self.eval_metrics['success_rate']}")
+                    path = os.path.join(
+                        self.ckpt_dir, f"{self.current_task}_best_eval.pt"
+                    )
+                    torch.save(save_dict, path)
 
     def train_single_iteration(self):
         # iterate over dataset
@@ -261,16 +255,41 @@ class CLTrainer(Trainer):
             if self.config.log_to_wandb:
                 wandb.log({f"{self.current_task}/train/epoch": epoch})
 
-            # save model
-            if epoch % self.config.save_every == 0 and epoch != 0:
-                self.save_model(epoch, self.eval_metrics)
-
             # run evaluation for online_training
             if self.config.eval_every > 0 and epoch % self.config.eval_every == 0:
                 if self.config.skip_first_eval and epoch == 0:
                     pass
                 else:
-                    self.eval(epoch, self.current_task)
+                    self.eval(epoch)
+
+            if (
+                self.config.early_stopping
+                and self.eval_metrics[self.config.early_stopping_metric]
+                < self.best_eval_perf
+            ):
+                # early stopping
+                if self.patience >= self.config.patience:
+                    print(f"patience {self.config.patience} reached, early stopping")
+                    break
+                else:
+                    self.patience += 1
+                    print(f"performance did not improve, patience: {self.patience}")
+            else:  # resetting the patience
+                self.patience = self.config.patience
+
+            # save model
+            if epoch % self.config.save_every == 0 and epoch != 0:
+                self.save_model(epoch)
+
+            # update metrics
+            if hasattr(self, "eval_metrics"):
+                if self.eval_metrics["success_rate"] > self.best_eval_perf:
+                    print(f"new best eval: {self.eval_metrics['success_rate']} ")
+                    self.best_eval_perf = self.eval_metrics["success_rate"]
+                else:
+                    print(
+                        f"model eval perf: {self.eval_metrics['success_rate']}, previous best: {self.best_eval_perf}"
+                    )
 
             for _ in range(self.config.num_steps_per_epoch):
                 self.train_single_iteration()
@@ -280,11 +299,68 @@ class CLTrainer(Trainer):
         self.eval(epoch, self.current_task)
 
         # save very last epoch
-        self.save_model(epoch, self.eval_metrics)
+        self.save_model(epoch)
+
+    def load_model_from_ckpt(self):
+        import ipdb
+
+        ipdb.set_trace()
+        if self.config.model.model_cls == "transformer":
+            model_cls = TransformerPolicy
+        elif self.config.model.model_cls == "mlp_policy":
+            model_cls = MLPPolicy
+
+        if self.config.pretrained_mdl_ckpt_dir:
+            print(
+                f"loading pretrained model from {self.config.pretrained_mdl_ckpt_dir}"
+            )
+            ckpt_file = sorted(glob.glob(f"{self.config.model_ckpt_dir}/models/*"))[-1]
+            state_dict = torch.load(ckpt_file)
+            model_config = state_dict["config"]
+
+            model = model_cls(model_config.model)
+            del state_dict["config"]
+            del state_dict["epoch"]
+            model.load_state_dict(state_dict, strict=True)
+            self.config.batch_size = model_config["batch_size"]
+        else:
+            model = model_cls(model_config.model)
+
+        # if self.config.load_from_ckpt and self.config.resume_experiment:
+        #     import ipdb
+
+        #     ipdb.set_trace()
+        #     # loading from previous checkpoint
+
+        #     # figure out which was the last task that had saved checkpoints
+        #     ckpt_files = sorted(glob.glob(f"{self.config.model_ckpt_dir}/models/*"))
+
+        #     for i, task in enumerate(self.config.data.cl_tasks):
+        #         found = False
+        #         for ckpt_file in ckpt_files:
+        #             if task in ckpt_file:
+        #                 found = True
+        #         if not found:
+        #             self.current_task = task
+        #             break
+
+        #     print(f"finished learning up to {self.current_task}, continuing from here")
+
+        #     # load checkpoint of previous task
+
+        print("base model params: ", general_utils.count_parameters(model))
+        return model
 
     def setup_logging(self):
-        group_name = self.config.exp_name
-        exp_prefix = f"exp-{random.randint(int(1e5), int(1e6) - 1)}"
+        if (
+            self.config.load_from_ckpt and self.config.resume_experiment
+        ):  # continue the same plot
+            path = Path(self.config.model_ckpt_dir)
+            exp_prefix = path.parts[-1]
+            group_name = path.parts[-2]
+        else:
+            exp_prefix = f"exp-{random.randint(int(1e5), int(1e6) - 1)}"
+            group_name = self.config.exp_name
 
         if self.config.log_to_wandb:
             wandb.init(
@@ -322,6 +398,7 @@ class CLTrainer(Trainer):
             self.setup_dataloader()
             self.total_training_iters = 0
             self.best_eval_perf = -np.inf
+            self.patience = self.config.patience
             self.eval_metrics = None
 
             # reset optimizer

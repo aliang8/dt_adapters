@@ -83,6 +83,7 @@ class Trainer(object):
         self.total_training_iters = 0
         self.total_online_rollouts = 0
         self.best_eval_perf = -np.inf
+        self.patience = self.config.patience
         self.eval_metrics = None
 
         def loss_fn(**kwargs):
@@ -293,19 +294,19 @@ class Trainer(object):
 
     def save_model(self, epoch, metrics):
         if self.config.log_outputs:
-            if self.config.model.use_adapters:
-                if hasattr(self, "eval_metrics") and self.config.save_best_model:
-                    if metrics["success_rate"] > self.best_eval_perf:
-                        print(
-                            f"saving model to {self.ckpt_dir}, new best eval: {metrics['success_rate']} "
-                        )
-                        self.best_eval_perf = metrics["success_rate"]
-                    else:
-                        print(
-                            f"model eval perf: {metrics['success_rate']}, previous best: {self.best_eval_perf}, not saving"
-                        )
-                        return
+            if hasattr(self, "eval_metrics") and self.config.save_best_model:
+                if metrics["success_rate"] > self.best_eval_perf:
+                    print(
+                        f"saving model to {self.ckpt_dir}, new best eval: {metrics['success_rate']} "
+                    )
+                    self.best_eval_perf = metrics["success_rate"]
+                else:
+                    print(
+                        f"model eval perf: {metrics['success_rate']}, previous best: {self.best_eval_perf}, not saving"
+                    )
+                    return
 
+            if self.config.model.use_adapters:
                 if self.config.model.use_adapter_fusion:
                     # save the fusion layer
                     self.model.save_adapter_fusion(
@@ -359,8 +360,8 @@ class Trainer(object):
                 save_dict["config"] = self.config
                 torch.save(save_dict, path)
 
-    def setup_model(self):
-        if self.config.model.model_cls == "decision_transformer":
+    def load_model_from_ckpt(self):
+        if self.config.model.model_cls == "transformer":
             model_cls = TransformerPolicy
         elif self.config.model.model_cls == "mlp_policy":
             model_cls = MLPPolicy
@@ -381,6 +382,10 @@ class Trainer(object):
             model = model_cls(self.config.model)
 
         print("base model params: ", general_utils.count_parameters(model))
+        return model
+
+    def setup_model(self):
+        model = self.load_model_from_ckpt()
 
         if self.config.model.use_adapters:
             # Look at what trained adapters are already available
@@ -611,16 +616,31 @@ class Trainer(object):
             if self.config.log_to_wandb:
                 wandb.log({"train/epoch": epoch})
 
-            # save model
-            if epoch % self.config.save_every == 0 and epoch != 0:
-                self.save_model(epoch, self.eval_metrics)
-
             # run evaluation for online_training
             if self.config.eval_every > 0 and epoch % self.config.eval_every == 0:
                 if self.config.skip_first_eval and epoch == 0:
                     pass
                 else:
                     self.eval(epoch)
+
+            if (
+                self.config.early_stopping
+                and self.eval_metrics[self.config.early_stopping_metric]
+                < self.best_eval_perf
+            ):
+                # early stopping
+                if self.patience >= self.config.patience:
+                    print(f"patience {self.config.patience} reached, early stopping")
+                    break
+                else:
+                    self.patience += 1
+                    print(f"performance did not improve, patience: {self.patience}")
+            else:  # resetting the patience
+                self.patience = self.config.patience
+
+            # save model
+            if epoch % self.config.save_every == 0 and epoch != 0:
+                self.save_model(epoch, self.eval_metrics)
 
             # iterate for a number of rollouts
             # for each new rollout collected, we train the model for some amount of iterations

@@ -44,4 +44,10 @@ num_eval_rollouts: 10                               # number of rollouts per eva
 num_processes: 5                                    # number of processes for collecting eval rollouts
 
 model_ckpt_dir:                                     # where to look for model checkpoint
+pretrained_mdl_ckpt_dir:                            # pretrained model checkpoint dir
+resume_experiment: False                            # continue experiment
 mode: train
+
+early_stopping: True                                # terminate training early 
+early_stopping_metric: success_rate                 # which metric to stop early on
+patience: 5                                         # if patience is reached, end training early

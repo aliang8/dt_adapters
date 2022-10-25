@@ -435,3 +435,8 @@ class TransformerPolicy(TrajectoryModel):
             ]:
                 for param in module.parameters():
                     param.requires_grad = True
+
+        if self.config.freeze_first_n_layers > 0:
+            import ipdb
+
+            ipdb.set_trace()

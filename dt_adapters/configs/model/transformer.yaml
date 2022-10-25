@@ -1,4 +1,4 @@
-model_cls: decision_transformer
+model_cls: transformer
 
 max_length: ${data.context_len}
 max_ep_len: 1000                                      # maximum rollout length
@@ -16,7 +16,9 @@ max_return: 500
 bin_width: 5
 num_return_samples: 250
 
-num_action_pred_layers: 2
+num_action_pred_layers: 0
+freeze_first_n_layers: 0
+
 
 # configuration for the backbone model
 gpt2:

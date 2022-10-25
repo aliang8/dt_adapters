@@ -1,4 +1,4 @@
-context_len: 50                                   # number of timesteps the DT model can attend to 
+context_len: 20                                   # number of timesteps the DT model can attend to 
 state_dim: ???                                
 act_dim: ???                                     
 max_ep_len: ???                                   # max number of steps allowed in env
