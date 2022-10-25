@@ -5,11 +5,11 @@ Script for creating slurm files and then executing them for searching over hyper
 python3 -m dt_adapters.slurm_jobber \
     --num_processes_per_gpu=1 \
     --run_scripts=0 \
-    --grid_files=dt_adapters/experiments/cl_from_scratch.yaml \
+    --grid_files=dt_adapters/experiments/pretrain_dt.yaml \
     --lower_priority=0 \
     --data=mw_40_10_cl \
-    --model=decision_transformer \
-    --config=offline_finetune \
+    --model=transformer \
+    --config=train \
     --run_amber
 """
 

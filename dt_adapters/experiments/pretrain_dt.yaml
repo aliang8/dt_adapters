@@ -1,5 +1,5 @@
 general:
-    seed: [2]
+    seed: [0]
     exp_name: [pretrain_dt_ml45]
     log_to_wandb: [False]
     log_outputs: [False]
