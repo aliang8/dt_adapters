@@ -22,7 +22,7 @@ except:
 
 import dt_adapters.mw_utils as mw_utils
 import dt_adapters.general_utils as general_utils
-from dt_adapters.data.process_rlbench_data import extract_image_feats
+import dt_adapters.data.utils as data_utils
 
 
 def rollout(
@@ -64,26 +64,13 @@ def rollout(
     state_dim = model.state_dim
     act_dim = model.act_dim
 
+    if "image" in observation_mode:
+        img_preprocessor, depth_img_preprocessor = data_utils.get_preprocessor(
+            config.model.state_encoder.vision_backbone,
+        )
+
     with torch.no_grad():
         start = time.time()
-
-        if observation_mode == "image":
-            # not sure why i can't pickle this stuff
-            img_preprocessor = CLIPProcessor.from_pretrained(
-                "openai/clip-vit-base-patch32"
-            )
-            depth_img_preprocessor = T.Compose(
-                [
-                    T.Lambda(
-                        lambda images: torch.stack(
-                            [T.ToTensor()(image) for image in images]
-                        )
-                    ),
-                    T.Resize([64]),
-                    # T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
-                    T.Lambda(lambda images: images.numpy()),
-                ]
-            )
 
         # ============= PROCESS FIRST OBS =============
         last_obs = env.reset()
@@ -102,12 +89,13 @@ def rollout(
             for k, _ in img_obs.items():
                 img_obs[k] = img_obs[k][np.newaxis]
 
-            img_feats = extract_image_feats(
+            img_feats = data_utils.extract_image_feats(
                 img_obs,
                 img_preprocessor,
                 img_encoder,
                 depth_img_preprocessor,
                 depth_img_encoder,
+                vision_backbone=config.data.vision_backbone,
             )
 
             [frames[k].append(v) for k, v in img_obs.items()]
@@ -135,11 +123,7 @@ def rollout(
             states = None
 
         if "image" in observation_mode:
-            img_feats = (
-                torch.from_numpy(last_img_feats)
-                .reshape(1, -1)
-                .to(device, dtype=torch.float32)
-            )
+            img_feats = last_img_feats.reshape(1, -1).to(device, dtype=torch.float32)
         else:
             img_feats = None
 
@@ -209,12 +193,13 @@ def rollout(
                 for k, _ in img_obs.items():
                     img_obs[k] = img_obs[k][np.newaxis]
 
-                last_img_feats = extract_image_feats(
+                last_img_feats = data_utils.extract_image_feats(
                     img_obs,
                     img_preprocessor,
                     img_encoder,
                     depth_img_preprocessor,
                     depth_img_encoder,
+                    vision_backbone=config.data.vision_backbone,
                 )
 
                 [frames[k].append(v) for k, v in img_obs.items()]
@@ -248,9 +233,7 @@ def rollout(
                 states = torch.cat([states, cur_state], dim=0)
 
             if "image" in observation_mode:
-                cur_img_feats = (
-                    torch.from_numpy(last_img_feats).to(device=device).reshape(1, -1)
-                )
+                cur_img_feats = last_img_feats.to(device=device).reshape(1, -1)
                 img_feats = torch.cat([img_feats, cur_img_feats], dim=0)
 
             # if config.model.predict_return_dist:

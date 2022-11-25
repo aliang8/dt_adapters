@@ -11,9 +11,9 @@ obj_randomization: False                          # randomize object position ev
 
 image_keys: 
   - corner_rgb
-  - corner2_rgb
-  - corner3_rgb
-  - topview_rgb
+  # - corner2_rgb
+  # - corner3_rgb
+  # - topview_rgb
 
 train_tasks:                                      # tasks to pretrain on
   - assembly-v2

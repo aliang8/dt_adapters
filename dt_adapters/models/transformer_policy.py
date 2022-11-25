@@ -402,9 +402,7 @@ class TransformerPolicy(TrajectoryModel):
 
         return model_out["action_preds"][0, -1], model_out["return_preds"][0, -1], {}
 
-    def freeze_backbone(
-        self, train_prediction_head=False, train_state_embeddings=False
-    ):
+    def freeze_backbone(self):
         # freeze everything
         for module in [
             self.embed_state,
@@ -415,18 +413,19 @@ class TransformerPolicy(TrajectoryModel):
             self.predict_action,
             self.predict_state,
             self.predict_return,
+            self.transformer
         ]:
             for param in module.parameters():
                 param.requires_grad = False
-
-        if train_prediction_head:
+        
+        if self.config.train_prediction_head:
             for param in self.transformer.parameters():
                 param.requires_grad = False
 
             for param in self.predict_action.parameters():
                 param.requires_grad = True
 
-        if train_state_embeddings:
+        if self.config.train_state_embeddings:
             for module in [
                 self.embed_state,
                 self.embed_action,
@@ -436,7 +435,13 @@ class TransformerPolicy(TrajectoryModel):
                 for param in module.parameters():
                     param.requires_grad = True
 
-        if self.config.freeze_first_n_layers > 0:
-            import ipdb
+        if self.config.freeze_bottom_n_layers > 0:
+            # freeze the bottom n layers and also freeze the input embedding layers
+            # train all other layers but the one closest to the input
+            # also train the action prediction head
+            for param in self.transformer.transformer.h[self.config.freeze_bottom_n_layers:].parameters():
+                param.requires_grad = True
+            
+            for param in self.embed_action.parameters():
+                param.requires_grad = True
 
-            ipdb.set_trace()

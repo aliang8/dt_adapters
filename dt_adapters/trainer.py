@@ -187,9 +187,12 @@ class Trainer(object):
             weight_decay=self.config.weight_decay,
         )
 
-        self.scheduler = torch.optim.lr_scheduler.LambdaLR(
-            self.optimizer, lambda steps: min((steps + 1) / self.config.warmup_steps, 1)
-        )
+        if self.config.warmup_steps > 0:
+            self.scheduler = torch.optim.lr_scheduler.LambdaLR(
+                self.optimizer, lambda steps: min((steps + 1) / self.config.warmup_steps, 1)
+            )
+        else:
+            self.scheduler = None
 
         # auto-tune entropy term
         if self.config.model.use_entropy and self.config.model.target_entropy:
@@ -294,7 +297,7 @@ class Trainer(object):
 
     def save_model(self, epoch, metrics):
         if self.config.log_outputs:
-            if hasattr(self, "eval_metrics") and self.config.save_best_model:
+            if metrics and self.config.save_best_model:
                 if metrics["success_rate"] > self.best_eval_perf:
                     print(
                         f"saving model to {self.ckpt_dir}, new best eval: {metrics['success_rate']} "
@@ -309,10 +312,10 @@ class Trainer(object):
             if self.config.model.use_adapters:
                 if self.config.model.use_adapter_fusion:
                     # save the fusion layer
-                    self.model.save_adapter_fusion(
-                        self.ckpt_dir, self.config.model.adapters_to_use
+                    self.model.transformer.save_adapter_fusion(
+                        self.ckpt_dir, OmegaConf.to_container(self.config.model.adapters_to_use)
                     )
-                    self.model.save_all_adapters(self.ckpt_dir)
+                    self.model.transformer.save_all_adapters(self.ckpt_dir)
                 else:
                     # save just the adapter weights
                     self.model.transformer.save_adapter(
@@ -342,13 +345,11 @@ class Trainer(object):
                     }
 
                     names = [a["name"] for a in adapter_info[key]]
-                    index = names.index(self.config.data.eval_task)
-
-                    # insert new adapter into library
-                    if index == -1:
-                        adapter_info[key].append(new_adapter)
-                    else:
+                    if self.config.data.eval_task in names:
+                        index = names.index(self.config.data.eval_task)
                         adapter_info[key][index] = new_adapter
+                    else:
+                        adapter_info[key].append(new_adapter)
 
                 with open(constants.HUB_FILE, "w") as f:
                     yaml.safe_dump(adapter_info, f)
@@ -373,6 +374,11 @@ class Trainer(object):
             state_dict = torch.load(ckpt_file)
             model_config = state_dict["config"]
 
+            # merge new configs from current model dict into existing model 
+            for k, v in self.config.model.items():
+                if k not in model_config.model: 
+                    model_config.model[k] = v
+
             model = model_cls(model_config.model)
             del state_dict["config"]
             del state_dict["epoch"]
@@ -386,6 +392,9 @@ class Trainer(object):
 
     def setup_model(self):
         model = self.load_model_from_ckpt()
+
+        if self.config.freeze_backbone:
+            model.freeze_backbone()
 
         if self.config.model.use_adapters:
             # Look at what trained adapters are already available
@@ -429,6 +438,8 @@ class Trainer(object):
                     print(f"Loading {adapter_name} from {adapter_ckpt_path}")
                     adapter_name = model.transformer.load_adapter(adapter_ckpt_path)
 
+                # add the new adapter 
+                # adapters_to_use.append(task_name)
                 model.transformer.add_adapter_fusion(adapters_to_use)
 
                 # set the fusion layer as active
@@ -438,13 +449,13 @@ class Trainer(object):
                 # make sure all the other weights are frozen except fusion layer
                 model.transformer.train_adapter_fusion(fusion_layer)
             else:
+                # also add an adapter for the new task 
                 if task_name in st_library:
                     print(
                         f"Trained adapter already exists for: {task_name}, will be overwriting."
                     )
 
                 print(f"Training new adapter for: {task_name}")
-
                 # train a new set of adapter weights
                 adapter_config = AdapterConfig.load(**cfg)
                 model.transformer.add_adapter(task_name, config=adapter_config)
@@ -454,12 +465,6 @@ class Trainer(object):
 
                 # set the adapters to be used in every forward pass
                 model.transformer.set_active_adapters(task_name)
-
-        if self.config.freeze_backbone:
-            model.freeze_backbone(
-                train_prediction_head=self.config.model.train_prediction_head,
-                train_state_embeddings=self.config.model.train_state_embeddings,
-            )
 
         self.model = model.to(self.device)
         self.model.train()
@@ -505,6 +510,10 @@ class Trainer(object):
             start = time.time()
             # put tensors on gpu
             batch = general_utils.to_device(batch, self.device)
+
+            # TODO: remove this line 
+            batch['img_feats'] = batch['img_feats'][..., :768]
+
             if "returns_to_go" in batch:
                 batch["returns_to_go"] = batch["returns_to_go"][:, :-1]
                 return_target = torch.clone(batch["returns_to_go"])
@@ -625,7 +634,7 @@ class Trainer(object):
 
             if (
                 self.config.early_stopping
-                and self.eval_metrics[self.config.early_stopping_metric]
+                and self.eval_metrics and self.eval_metrics[self.config.early_stopping_metric]
                 < self.best_eval_perf
             ):
                 # early stopping
@@ -688,6 +697,7 @@ class Trainer(object):
                     self.total_training_iters += 1
 
         # save very last epoch
+        self.eval(epoch)
         self.save_model(epoch, self.eval_metrics)
 
     def mp_rollout(
@@ -738,7 +748,7 @@ class Trainer(object):
         return eval_rollouts
 
 
-@hydra.main(config_path="configs", config_name="train")
+@hydra.main(config_path="configs", config_name="train", version_base="1.1")
 def main(config):
     OmegaConf.set_struct(config, False)
     config.update(config.general)

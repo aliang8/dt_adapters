@@ -1,11 +1,13 @@
 adapter_fusion_layers:
-- null
+- ckpt_path: /test/adapter.pth
+  name: test
 single_task_adapters:
 - ckpt_path: /test/adapter.pth
   name: test
-- ckpt_path: /home/anthony/dt_adapters/outputs/dt_ml45_downstream_drawer_put/drawer-open-v2exp-171258/models
+- ckpt_path: /home/anthony/dt_adapters/outputs/dt_ml45_downstream_drawer_put/drawer-open-v2exp-338110/models
   epoch: 99
   name: drawer-open-v2
-- ckpt_path: /home/anthony/dt_adapters/outputs/dt_ml45_downstream_drawer_put/pick-place-v2exp-190062/models
-  epoch: 99
+- best_success_rate: 1.0
+  ckpt_path: /home/anthony/dt_adapters/outputs/dt_ml45_downstream_drawer_put/pick-place-v2exp-406997/models
+  epoch: 76
   name: pick-place-v2

@@ -311,17 +311,21 @@ class CLTrainer(Trainer):
             model_cls = MLPPolicy
 
         if self.config.pretrained_mdl_ckpt_dir:
-            print(
-                f"loading pretrained model from {self.config.pretrained_mdl_ckpt_dir}"
-            )
-            ckpt_file = sorted(glob.glob(f"{self.config.model_ckpt_dir}/models/*"))[-1]
+            ckpt_file = sorted(
+                glob.glob(f"{self.config.pretrained_mdl_ckpt_dir}/models/*")
+            )[-1]
             state_dict = torch.load(ckpt_file)
             model_config = state_dict["config"]
 
             model = model_cls(model_config.model)
+            print(
+                f"loading pretrained model from {self.config.pretrained_mdl_ckpt_dir}, epoch: {state_dict['epoch']}"
+            )
+
             del state_dict["config"]
             del state_dict["epoch"]
             model.load_state_dict(state_dict, strict=True)
+            model.config.update(self.config.model)
             self.config.batch_size = model_config["batch_size"]
         else:
             model = model_cls(model_config.model)
