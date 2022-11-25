@@ -5,6 +5,7 @@ max_ep_len: ???                                   # max number of steps allowed 
 scale: 1000                                       # return normalization for online fine-tuning
 data_dir: /data/anthony/dt_adapters/data/         # root folder of dataset
 data_file: ???                                    # data hdf5 file name
+num_demos_per_task: -1
 
 # visual encoder
 image_size: 64                                    # resize dimension for image input

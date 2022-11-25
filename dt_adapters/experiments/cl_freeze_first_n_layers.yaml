@@ -1,5 +1,6 @@
 CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3.7 -m dt_adapters.cl_trainer \
-    --config-name=offline_finetune data=[base,mw_40_10_cl] \
+    --config-name=offline_finetune \
+    data=[base,mw_40_10_cl] \
     model=[base,transformer] \
     data.data_dir=/data/anthony/dt_adapters/data/metaworld_data \
     data.data_file=trajectories_all_with_images_10.hdf5 \
@@ -14,7 +15,7 @@ CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3.7 -m dt_adapters.cl_trainer \
     general.seed=0 \
     general.skip_first_eval=False \
     model.freeze_first_n_layers=2 \
-    general.pretrained_mdl_ckpt_dir=home/anthony/dt_adapters/outputs/pretrain_dt_cl_40_10/exp-126439
+    general.pretrained_mdl_ckpt_dir=/home/anthony/dt_adapters/outputs/pretrain_dt_cl_40_10/exp-126439
 
 general:
     seed: [0]

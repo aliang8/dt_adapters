@@ -302,9 +302,6 @@ class CLTrainer(Trainer):
         self.save_model(epoch)
 
     def load_model_from_ckpt(self):
-        import ipdb
-
-        ipdb.set_trace()
         if self.config.model.model_cls == "transformer":
             model_cls = TransformerPolicy
         elif self.config.model.model_cls == "mlp_policy":

@@ -72,7 +72,13 @@ class DemoDataset(BaseDataset):
 
                 num_demos = len(f[task].keys())
 
-                for k, demo in f[task].items():
+                for i, (k, demo) in enumerate(f[task].items()):
+                    if (
+                        config.num_demos_per_task != -1
+                        and i >= config.num_demos_per_task
+                    ):
+                        break
+
                     states = demo["states"][()]
 
                     if self.config.env_name == "metaworld" and self.config.hide_goal:
@@ -86,7 +92,7 @@ class DemoDataset(BaseDataset):
                         "timesteps": np.arange(len(states)),
                         "attention_mask": np.ones(len(states)),
                         "online": 0,
-                        "task": task,
+                        # "task": task,
                     }
 
                     if self.config.env_name == "metaworld":
@@ -113,6 +119,35 @@ class DemoDataset(BaseDataset):
             np.mean(all_states, axis=0),
             np.std(all_states, axis=0) + 1e-6,
         )
+
+
+class TrajectoryDataset(DemoDataset):
+    def __init__(self, config, stage="pretraining"):
+        super().__init__(config, stage)
+        self.max_traj_len = max(
+            [traj["actions"].shape[0] for traj in self.trajectories]
+        )
+        print(f"max trajectory length: {self.max_traj_len}")
+
+        # pad everything to max length
+        for i, traj in enumerate(self.trajectories):
+            for k, v in traj.items():
+                if k not in ["online", "obj_ids"]:
+                    self.trajectories[i][k] = np.concatenate(
+                        [np.zeros((self.max_traj_len - v.shape[0], *v.shape[1:])), v],
+                        axis=0,
+                    )
+
+                if k == "state":
+                    self.trajectories[i][k] = (
+                        self.trajectories[i][k] - self.state_mean
+                    ) / self.state_std
+
+    def __getitem__(self, idx):
+        return self.trajectories[idx]
+
+    def __len__(self):
+        return len(self.trajectories)
 
 
 # if __name__ == "__main__":
