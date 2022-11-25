@@ -17,6 +17,7 @@ warmup_steps: 10000                                 # warmup steps for scheduler
 num_data_workers: 1                                 # for data loading
 
 # logging
+project_name: dt-adapters
 exp_name: test                                      # exp name, used for folder path and wandb group name
 log_to_wandb: False                                 # should we log the metrics to wandb
 log_outputs: True                                   # should we create a new folder and store exp output
