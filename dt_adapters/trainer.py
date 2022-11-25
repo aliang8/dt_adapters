@@ -168,7 +168,7 @@ class Trainer(object):
             wandb.init(
                 name=exp_prefix,
                 group=group_name,
-                project="dt-adapters",
+                project=self.config.project_name,
                 config=OmegaConf.to_container(self.config),
                 entity="glamor",
             )
@@ -181,15 +181,24 @@ class Trainer(object):
             os.makedirs(self.ckpt_dir, exist_ok=True)
 
     def setup_optimizer(self):
-        self.optimizer = torch.optim.AdamW(
+        if self.config.optimizer == "adam":
+            optim_cls = torch.optim.Adam
+        elif self.config.optimizer == "adamw":
+            optim_cls = torch.optim.AdamW
+        else:
+            raise NotImplementedError()
+
+        self.optimizer = optim_cls(
             self.model.parameters(),
             lr=self.config.lr,
             weight_decay=self.config.weight_decay,
         )
 
-        self.scheduler = torch.optim.lr_scheduler.LambdaLR(
-            self.optimizer, lambda steps: min((steps + 1) / self.config.warmup_steps, 1)
-        )
+        if self.config.use_scheduler:
+            self.scheduler = torch.optim.lr_scheduler.LambdaLR(
+                self.optimizer,
+                lambda steps: min((steps + 1) / self.config.warmup_steps, 1),
+            )
 
         # auto-tune entropy term
         if self.config.model.use_entropy and self.config.model.target_entropy:
@@ -254,9 +263,10 @@ class Trainer(object):
 
     def eval(self, epoch, task=None):
         print("running eval")
+        self.model.eval()
         log_eval_videos = (
             epoch % self.config.log_eval_videos_every == 0 or self.config.mode == "eval"
-        )
+        ) and self.config.log_eval_videos
         attend_to_rtg = True if self.config.online_training else False
         task = task if task is not None else self.config.data.eval_task
         eval_rollouts = self.mp_rollout(
@@ -294,7 +304,11 @@ class Trainer(object):
 
     def save_model(self, epoch, metrics):
         if self.config.log_outputs:
-            if hasattr(self, "eval_metrics") and self.config.save_best_model:
+            if (
+                hasattr(self, "eval_metrics")
+                and self.eval_metrics
+                and self.config.save_best_model
+            ):
                 if metrics["success_rate"] > self.best_eval_perf:
                     print(
                         f"saving model to {self.ckpt_dir}, new best eval: {metrics['success_rate']} "

@@ -32,10 +32,7 @@ from dt_adapters.mw_utils import (
 )
 from dt_adapters.mw_constants import OBJECTS_TO_ENV
 from dt_adapters.general_utils import split
-from dt_adapters.data.utils import (
-    get_visual_encoders,
-    extract_image_feats,
-)
+import dt_adapters.data.utils as data_utils
 from metaworld.envs.mujoco.env_dict import ALL_V2_ENVIRONMENTS
 from metaworld.policies import *
 
@@ -80,8 +77,8 @@ def rollout(
 
         episode_length += 1
         if terminate:
-            print("SUCCESS")
-            print(episode_length)
+            # print("SUCCESS")
+            # print(episode_length)
             dones.append(1)
             traj_success = True
             break
@@ -149,12 +146,13 @@ def collect_dataset(config, envs, results_queue, wandb_run):
 
 def handle_output(config, results_queue):
     hf = h5py.File(os.path.join(config.data_dir, config.data_file), "w")
-    (
-        img_preprocessor,
-        img_encoder,
-        depth_img_preprocessor,
-        depth_img_encoder,
-    ) = get_visual_encoders(config.image_size, "cuda")
+    img_preprocessor, depth_img_preprocessor = data_utils.get_preprocessor(
+        config.vision_backbone
+    )
+    img_encoder, depth_img_encoder = data_utils.get_visual_encoders(
+        config.vision_backbone, "cuda"
+    )
+
     print("done initializing visual encoders")
 
     while True:
@@ -164,24 +162,29 @@ def handle_output(config, results_queue):
 
             print(path.keys())
 
-            img_feats = extract_image_feats(
-                path["frames"],
-                img_preprocessor,
-                img_encoder,
-                depth_img_preprocessor,
-                depth_img_encoder,
-            )
+            if not config.save_image:
+                img_feats = data_utils.extract_image_feats(
+                    path["frames"],
+                    img_preprocessor,
+                    img_encoder,
+                    depth_img_preprocessor,
+                    depth_img_encoder,
+                    vision_backbone=config.vision_backbone,
+                )
 
-            print("done extracting features")
-            print(img_feats.shape)
+                print("done extracting features")
+                print(img_feats.shape)
 
             g = hf.create_group(f"{env_name}/demo_{episode}")
             g.create_dataset("states", data=path["states"])
             g.create_dataset("actions", data=path["actions"])
             g.create_dataset("rewards", data=path["rewards"])
             g.create_dataset("dones", data=path["dones"])
-            # g.create_dataset("images", data=path["frames"])
-            g.create_dataset("img_feats", data=img_feats)
+
+            if config.save_image:
+                g.create_dataset("images", data=path["frames"])
+            else:
+                g.create_dataset("img_feats", data=img_feats.cpu().numpy())
         else:
             break
     hf.close()

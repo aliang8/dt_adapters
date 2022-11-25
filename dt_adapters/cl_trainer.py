@@ -302,23 +302,23 @@ class CLTrainer(Trainer):
         self.save_model(epoch)
 
     def load_model_from_ckpt(self):
-        import ipdb
-
-        ipdb.set_trace()
         if self.config.model.model_cls == "transformer":
             model_cls = TransformerPolicy
         elif self.config.model.model_cls == "mlp_policy":
             model_cls = MLPPolicy
 
         if self.config.pretrained_mdl_ckpt_dir:
-            print(
-                f"loading pretrained model from {self.config.pretrained_mdl_ckpt_dir}"
-            )
-            ckpt_file = sorted(glob.glob(f"{self.config.model_ckpt_dir}/models/*"))[-1]
+            ckpt_file = sorted(
+                glob.glob(f"{self.config.pretrained_mdl_ckpt_dir}/models/*")
+            )[-1]
             state_dict = torch.load(ckpt_file)
             model_config = state_dict["config"]
 
             model = model_cls(model_config.model)
+            print(
+                f"loading pretrained model from {self.config.pretrained_mdl_ckpt_dir}, epoch: {state_dict['epoch']}"
+            )
+
             del state_dict["config"]
             del state_dict["epoch"]
             model.load_state_dict(state_dict, strict=True)

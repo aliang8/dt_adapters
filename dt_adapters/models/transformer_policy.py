@@ -437,6 +437,12 @@ class TransformerPolicy(TrajectoryModel):
                     param.requires_grad = True
 
         if self.config.freeze_first_n_layers > 0:
-            import ipdb
+            # freeze N layers closest to the embedding layers
+            for param in self.transformer.transformer.h[
+                : self.config.freeze_first_n_layers
+            ].parameters():
+                param.requires_grad = False
 
-            ipdb.set_trace()
+            # unfreeze action prediction
+            for param in self.predict_action.parameters():
+                param.requires_grad = True
