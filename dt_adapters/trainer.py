@@ -168,7 +168,7 @@ class Trainer(object):
             wandb.init(
                 name=exp_prefix,
                 group=group_name,
-                project="dt-adapters",
+                project=self.config.project_name,
                 config=OmegaConf.to_container(self.config),
                 entity="glamor",
             )
@@ -181,15 +181,23 @@ class Trainer(object):
             os.makedirs(self.ckpt_dir, exist_ok=True)
 
     def setup_optimizer(self):
-        self.optimizer = torch.optim.AdamW(
+        if self.config.optimizer == "adam":
+            optim_cls = torch.optim.Adam
+        elif self.config.optimizer == "adamw":
+            optim_cls = torch.optim.AdamW
+        else:
+            raise NotImplementedError()
+
+        self.optimizer = optim_cls(
             self.model.parameters(),
             lr=self.config.lr,
             weight_decay=self.config.weight_decay,
         )
 
-        if self.config.warmup_steps > 0:
+        if self.config.use_scheduler:
             self.scheduler = torch.optim.lr_scheduler.LambdaLR(
-                self.optimizer, lambda steps: min((steps + 1) / self.config.warmup_steps, 1)
+                self.optimizer,
+                lambda steps: min((steps + 1) / self.config.warmup_steps, 1),
             )
         else:
             self.scheduler = None
@@ -257,9 +265,10 @@ class Trainer(object):
 
     def eval(self, epoch, task=None):
         print("running eval")
+        self.model.eval()
         log_eval_videos = (
             epoch % self.config.log_eval_videos_every == 0 or self.config.mode == "eval"
-        )
+        ) and self.config.log_eval_videos
         attend_to_rtg = True if self.config.online_training else False
         task = task if task is not None else self.config.data.eval_task
         eval_rollouts = self.mp_rollout(
@@ -474,12 +483,7 @@ class Trainer(object):
         # load ll_state and image encoding networks
         if "image" in self.config.data.observation_mode:
             print("loading visual feature extractors")
-            (
-                self.img_preprocessor,
-                self.img_encoder,
-                self.depth_img_preprocessor,
-                self.depth_img_encoder,
-            ) = get_visual_encoders(self.config.data.image_size, "cuda")
+            self.img_encoder, self.depth_img_encoder = get_visual_encoders(self.config.data.vision_backbone, "cuda")
             self.img_encoder.share_memory()
             self.depth_img_encoder.share_memory()
         else:

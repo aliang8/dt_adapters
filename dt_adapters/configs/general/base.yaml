@@ -9,6 +9,8 @@ skip_first_eval: False                              # skip first evalution step
 num_epochs: 100                                     # number of training epochs
 batch_size: 128                                   
 
+optimizer: adamw
+use_scheduler: False
 lr: 1e-4                                            
 weight_decay: 1e-4
 alpha_lr: 1e-4                                      # learning rate for auto-tuning alpha
@@ -17,6 +19,7 @@ warmup_steps: 10000                                 # warmup steps for scheduler
 num_data_workers: 1                                 # for data loading
 
 # logging
+project_name: dt-adapters
 exp_name: test                                      # exp name, used for folder path and wandb group name
 log_to_wandb: False                                 # should we log the metrics to wandb
 log_outputs: True                                   # should we create a new folder and store exp output
