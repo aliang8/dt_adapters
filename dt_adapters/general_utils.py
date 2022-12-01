@@ -1,10 +1,16 @@
+import glob
+import torch
 import numpy as np
+from omegaconf import OmegaConf
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Type, Union
 
 
 def to_device(batch, device):
     for k, v in batch.items():
-        batch[k] = batch[k].to(device)
+        if isinstance(v, dict):
+            batch[k] = to_device(v, device)
+        else:
+            batch[k] = batch[k].to(device)
     return batch
 
 
@@ -94,3 +100,127 @@ def freeze_module(module):
 
 def to_numpy(tensor):
     return tensor.detach().cpu().numpy()
+
+
+class bcolors:
+    HEADER = "\033[95m"
+    OKBLUE = "\033[94m"
+    OKCYAN = "\033[96m"
+    OKGREEN = "\033[92m"
+    WARNING = "\033[93m"
+    FAIL = "\033[91m"
+    ENDC = "\033[0m"
+    BOLD = "\033[1m"
+    UNDERLINE = "\033[4m"
+
+
+def find_diff_dict(d1, d2, path=""):
+    for k in d1:
+        if k == "general":
+            continue
+        if k in d2:
+            if type(d1[k]) is dict:
+                find_diff_dict(d1[k], d2[k], "%s -> %s" % (path, k) if path else k)
+
+            if d1[k] != d2[k] and type(d1[k]) is not dict and type(d2[k]) is not dict:
+                result = [
+                    "%s: " % path,
+                    f"{bcolors.FAIL} - {k} : {d1[k]}{bcolors.ENDC}",
+                    f"{bcolors.OKGREEN} + {k} : {d2[k]}{bcolors.ENDC}",
+                ]
+                print("\n".join(result))
+        else:
+            print("%s%s as key not in d2\n" % ("%s: " % path if path else "", k))
+
+
+def find_new_keys(d1, d2, path=""):
+    for k in d1:
+        if k == "general":
+            continue
+
+        if type(d1[k]) is dict:
+            find_new_keys(d1[k], d2[k], path=f"{path} -> {k}" if path else k)
+
+        if k not in d2:
+            result = [
+                "%s: " % path,
+                f"{bcolors.OKBLUE} + {k} : {d1[k]}{bcolors.ENDC}",
+            ]
+            print("\n".join(result))
+
+
+def load_model_from_ckpt(model, cfg, model_ckpt_dir, optimizer, scheduler=None):
+    # loading from previous checkpoint
+    ckpt_file = sorted(glob.glob(f"{model_ckpt_dir}/models/*"))[-1]
+    print(f"loading pretrained model from {ckpt_file}")
+
+    state_dict = torch.load(ckpt_file)
+    prev_cfg = state_dict["config"]
+    epoch = state_dict["epoch"]
+    del state_dict["config"]
+    del state_dict["epoch"]
+
+    # find differences between old cfg and new one
+    print("Differences between old config and new one:")
+    find_diff_dict(OmegaConf.to_container(prev_cfg), OmegaConf.to_container(cfg))
+
+    # find keys in new config not in the old config
+    print("New keys:")
+    find_new_keys(OmegaConf.to_container(cfg), OmegaConf.to_container(prev_cfg))
+
+    model.load_state_dict(state_dict["model"], strict=True)
+    optimizer.load_state_dict(state_dict["optimizer"])
+
+    if scheduler:
+        scheduler.load_state_dict(state_dict["scheduler"])
+    return model, epoch
+
+
+# adapter tools
+# log adapter info to hub
+import os
+import yaml
+import dt_adapters.constants as constants
+
+
+def update_adapter_hub(adapter_name, ckpt_dir, epoch, best_perf):
+    # open the hub file
+    with open(constants.HUB_FILE, "r") as f:
+        try:
+            adapter_info = yaml.safe_load(f)
+        except yaml.YAMLError as exc:
+            print(exc)
+
+        new_adapter = {
+            "name": adapter_name,
+            "ckpt_path": ckpt_dir,  # where is this adpater file stored
+            "epoch": epoch,
+            "best_success_rate": best_perf,
+        }
+
+        names = [a["name"] for a in adapter_info]
+        index = names.index(adapter_name)
+
+        # insert new adapter into library
+        if index == -1:
+            adapter_info.append(new_adapter)
+        else:
+            adapter_info[index] = new_adapter
+
+    # overwrite the file
+    with open(constants.HUB_FILE, "w") as f:
+        yaml.safe_dump(adapter_info, f)
+
+
+def save_model(ckpt_file, model, optimizer, scheduler=None, metadata=None):
+    print(f"saving model to {ckpt_file}")
+    save_dict = {}
+    save_dict["model"] = model.state_dict()
+    if optimizer:
+        save_dict["optimizer"] = optimizer.state_dict()
+
+    if scheduler:
+        save_dict["scheduler"] = scheduler.state_dict()
+
+    save_dict.update(metadata)
+    torch.save(save_dict, ckpt_file)

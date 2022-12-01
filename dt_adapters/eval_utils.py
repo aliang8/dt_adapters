@@ -1,5 +1,6 @@
 import numpy as np
 from collections import defaultdict as dd
+import dt_adapters.general_utils as general_utils
 
 
 def compute_eval_metrics(rollouts):
@@ -13,6 +14,10 @@ def compute_eval_metrics(rollouts):
     ]
 
     for traj in rollouts:
+        traj["returns_to_go"] = general_utils.discount_cumsum(
+            traj["rewards"], gamma=1.0
+        )
+
         if "rewards" in traj:
             rewards = traj["rewards"]
             returns = traj["returns_to_go"]

@@ -92,6 +92,7 @@ class DemoDataset(BaseDataset):
                         "timesteps": np.arange(len(states)),
                         "attention_mask": np.ones(len(states)),
                         "online": 0,
+                        "img_feats": {}
                         # "task": task,
                     }
 
@@ -108,7 +109,8 @@ class DemoDataset(BaseDataset):
                         )
 
                     if "image" in self.config.observation_mode:
-                        traj["img_feats"] = demo["img_feats"][()]
+                        for k in config.image_keys:
+                            traj["img_feats"][k] = demo["img_feats"][k][()]
 
                     self.trajectories.append(traj)
 

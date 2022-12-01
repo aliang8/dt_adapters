@@ -9,10 +9,8 @@ defaults:
 
 general:
   load_from_ckpt: True
-  num_eval_rollouts: 10
-  train_on_offline_data: True
   stage: finetuning
   freeze_backbone: True
 
-data:
-  obj_randomization: True
+model:
+  use_adapters: True

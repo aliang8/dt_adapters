@@ -1,0 +1,13 @@
+- data=[base,mw_45_5]
+- model=[base,transformer]
+- general.exp_name=test
+- general.log_to_wandb=False
+- general.log_outputs=False
+- general.skip_first_eval=True
+- data.hide_goal=True
+- data.observation_mode=state_image
+- data.eval_task=bin-picking-v2
+- data.vision_backbone=r3m
+- general.early_stopping=False
+- data.data_file=trajectories_drawer_bin_picking_25.hdf5
+- general.eval_every=0

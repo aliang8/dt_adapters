@@ -47,7 +47,7 @@ class BaseDataset(Dataset):
         state = np.concatenate(
             [np.zeros((self.context_len - tlen, self.state_dim)), state], axis=0
         )
-        state = (state - self.state_mean) / self.state_std
+        # state = (state - self.state_mean) / self.state_std
         action = np.concatenate(
             [np.ones((self.context_len - tlen, self.act_dim)) * -10.0, action], axis=0
         )
@@ -74,11 +74,12 @@ class BaseDataset(Dataset):
         )
 
         out = {
-            "states": state,
+            "states": state[:, : self.config.proprio],
             "actions": action,
             "timesteps": timestep,
             "attention_mask": mask,
             "online": traj["online"],
+            "img_feats": {},
         }
 
         if "reward" in traj:
@@ -92,18 +93,20 @@ class BaseDataset(Dataset):
             out["obj_ids"] = np.array(traj["obj_ids"])
 
         if "image" in self.config.observation_mode:
-            img_feats_shape = traj["img_feats"].shape[-1]
-            img_feats = traj["img_feats"][si : si + self.context_len].reshape(
-                -1, img_feats_shape
-            )
-            img_feats = np.concatenate(
-                [
-                    np.zeros((self.context_len - tlen, img_feats_shape)),
-                    img_feats,
-                ],
-                axis=0,
-            )
+            for k in self.config.image_keys:
+                img_feats_shape = traj["img_feats"][k].shape[1:]
 
-            out["img_feats"] = img_feats
+                img_feats = traj["img_feats"][k][si : si + self.context_len].reshape(
+                    -1, *img_feats_shape
+                )
+                img_feats = np.concatenate(
+                    [
+                        np.zeros((self.context_len - tlen, *img_feats_shape)),
+                        img_feats,
+                    ],
+                    axis=0,
+                )
+
+                out["img_feats"][k] = img_feats
 
         return out
