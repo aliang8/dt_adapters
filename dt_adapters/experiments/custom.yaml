@@ -1,0 +1,24 @@
+general:
+    seed: [0]
+    exp_name: [dt_ml45_pick_place_full]
+    log_to_wandb: [True]
+    log_outputs: [True]
+    eval_every: [1]
+    freeze_backbone: [False]
+    load_from_ckpt: [True]
+    skip_first_eval: [False]
+    num_processes: [0]
+    model_ckpt_dir: [/home/anthony/dt_adapters/outputs/pretrain_dt_ml45/exp-797356]
+    early_stopping: [False]
+
+data:
+    obj_randomization: [True]
+    # eval_task: [bin-picking-v2, hand-insert-v2, box-close-v2, door-lock-v2, door-unlock-v2]
+    eval_task: [pick-place-v2]
+    data_dir: [/home/anthony/dt_adapters/data/metaworld_data]
+    data_file: [trajectories_pick_place_50.hdf5]
+    observation_mode: [state]
+
+model:
+    use_adapters: [False]
+    # freeze_bottom_n_layers: [3]

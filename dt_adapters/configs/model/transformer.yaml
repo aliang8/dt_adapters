@@ -19,7 +19,7 @@ num_return_samples: 250
 train_prediction_head: False
 train_state_embeddings: False
 num_action_pred_layers: 0
-freeze_first_n_layers: 0
+freeze_bottom_n_layers: 0
 
 
 # configuration for the backbone model

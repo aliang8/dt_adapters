@@ -9,6 +9,8 @@ skip_first_eval: False                              # skip first evalution step
 num_epochs: 100                                     # number of training epochs
 batch_size: 128                                   
 
+optimizer: adamw
+use_scheduler: False
 lr: 1e-4                                            
 weight_decay: 1e-4
 alpha_lr: 1e-4                                      # learning rate for auto-tuning alpha

@@ -322,6 +322,7 @@ class CLTrainer(Trainer):
             del state_dict["config"]
             del state_dict["epoch"]
             model.load_state_dict(state_dict, strict=True)
+            model.config.update(self.config.model)
             self.config.batch_size = model_config["batch_size"]
         else:
             model = model_cls(model_config.model)
