@@ -1,10 +1,11 @@
 import torch
 import numpy as np
 
+from transformers import CLIPProcessor, CLIPVisionModel
+
 try:
     import mvp
     from r3m import load_r3m
-    from transformers import CLIPProcessor, CLIPVisionModel
 except:
     pass
 

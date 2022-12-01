@@ -240,6 +240,7 @@ class TransformerPolicy(TrajectoryModel):
             self.predict_action,
             self.predict_state,
             self.predict_return,
+            self.transformer,
         ]:
             for param in module.parameters():
                 param.requires_grad = False
@@ -258,13 +259,14 @@ class TransformerPolicy(TrajectoryModel):
                 for param in module.parameters():
                     param.requires_grad = True
 
-        if self.config.freeze_first_n_layers > 0:
-            # freeze N layers closest to the embedding layers
+        if self.config.freeze_bottom_n_layers > 0:
+            # freeze the bottom n layers and also freeze the input embedding layers
+            # train all other layers but the one closest to the input
+            # also train the action prediction head
             for param in self.transformer.transformer.h[
-                : self.config.freeze_first_n_layers
+                self.config.freeze_bottom_n_layers :
             ].parameters():
-                param.requires_grad = False
+                param.requires_grad = True
 
-            # unfreeze action prediction
-            for param in self.predict_action.parameters():
+            for param in self.embed_action.parameters():
                 param.requires_grad = True

@@ -58,7 +58,7 @@ CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 -m dt_adapters.trainer \
 CUDA_VISIBLE_DEVICES=3 DISPLAY=:3 python3 -m dt_adapters.trainer \
     --config-name=train \
     data=[base,mw_45_5] \
-    model=[base,decision_transformer] \
+    model=[base,transformer] \
     general.exp_name=pretrain_ml45_images_dt \
     general.log_to_wandb=False \
     general.log_outputs=False \
@@ -71,7 +71,7 @@ CUDA_VISIBLE_DEVICES=3 DISPLAY=:3 python3 -m dt_adapters.trainer \
 CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 -m dt_adapters.trainer \
     --config-name=offline_finetune \
     data=[base,mw_45_5] \
-    model=[base,decision_transformer] \
+    model=[base,transformer] \
     general.exp_name=dt_ml45_bin_picking_adapter \
     general.log_to_wandb=False \
     general.log_outputs=False \
@@ -86,7 +86,7 @@ CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 -m dt_adapters.trainer \
 CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 -m dt_adapters.trainer \
     --config-name=offline_finetune \
     data=[base,mw_45_5] \
-    model=[base,decision_transformer] \
+    model=[base,transformer] \
     general.exp_name=offline_finetune_bin-picking-v2_mw45_finetune_full \
     general.log_to_wandb=False \
     general.log_outputs=False \
@@ -100,7 +100,7 @@ CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 -m dt_adapters.trainer \
 CUDA_VISIBLE_DEVICES=1 DISPLAY=:0 python3 -m dt_adapters.trainer \
     --config-name=train \
     data=[base,rlbench] \
-    model=[base,decision_transformer] \
+    model=[base,transformer] \
     general.exp_name=pretrain_ml45_images_dt \
     general.log_to_wandb=False \
     general.log_outputs=False \

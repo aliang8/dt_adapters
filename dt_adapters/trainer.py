@@ -195,11 +195,7 @@ class Trainer(object):
 
     def save_model(self, epoch, metrics):
         if self.config.log_outputs:
-            if (
-                hasattr(self, "eval_metrics")
-                and self.eval_metrics
-                and self.config.save_best_model
-            ):
+            if metrics and self.config.save_best_model:
                 if metrics["success_rate"] > self.best_eval_perf:
                     print(
                         f"saving model to {self.ckpt_dir}, new best eval: {metrics['success_rate']} "
@@ -214,10 +210,11 @@ class Trainer(object):
             if self.config.model.use_adapters:
                 if self.config.model.use_adapter_fusion:
                     # save the fusion layer
-                    self.model.save_adapter_fusion(
-                        self.ckpt_dir, self.config.model.adapters_to_use
+                    self.model.transformer.save_adapter_fusion(
+                        self.ckpt_dir,
+                        OmegaConf.to_container(self.config.model.adapters_to_use),
                     )
-                    self.model.save_all_adapters(self.ckpt_dir)
+                    self.model.transformer.save_all_adapters(self.ckpt_dir)
                 else:
                     # save just the adapter weights
                     self.model.transformer.save_adapter(
@@ -287,6 +284,9 @@ class Trainer(object):
 
         print("base model params: ", general_utils.count_parameters(model))
 
+        if self.config.freeze_backbone:
+            model.freeze_backbone()
+
         if self.config.model.use_adapters:
             # Look at what trained adapters are already available
             with open(constants.HUB_FILE, "r") as f:
@@ -329,6 +329,8 @@ class Trainer(object):
                     print(f"Loading {adapter_name} from {adapter_ckpt_path}")
                     adapter_name = model.transformer.load_adapter(adapter_ckpt_path)
 
+                # add the new adapter
+                # adapters_to_use.append(task_name)
                 model.transformer.add_adapter_fusion(adapters_to_use)
 
                 # set the fusion layer as active
@@ -338,13 +340,13 @@ class Trainer(object):
                 # make sure all the other weights are frozen except fusion layer
                 model.transformer.train_adapter_fusion(fusion_layer)
             else:
+                # also add an adapter for the new task
                 if task_name in st_library:
                     print(
                         f"Trained adapter already exists for: {task_name}, will be overwriting."
                     )
 
                 print(f"Training new adapter for: {task_name}")
-
                 # train a new set of adapter weights
                 adapter_config = AdapterConfig.load(**cfg)
                 model.transformer.add_adapter(task_name, config=adapter_config)
@@ -443,6 +445,7 @@ class Trainer(object):
 
             if (
                 self.config.early_stopping
+                and self.eval_metrics
                 and self.eval_metrics[self.config.early_stopping_metric]
                 < self.best_eval_perf
             ):
@@ -466,10 +469,11 @@ class Trainer(object):
                 self.total_training_iters += 1
 
         # save very last epoch
+        self.eval(epoch)
         self.save_model(epoch, self.eval_metrics)
 
 
-@hydra.main(config_path="configs", config_name="train")
+@hydra.main(config_path="configs", config_name="train", version_base="1.1")
 def main(config):
     OmegaConf.set_struct(config, False)
     config.update(config.general)

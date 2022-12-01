@@ -91,7 +91,7 @@ export QT_LOGGING_RULES='*.debug=false;qt.qpa.*=false'
     # create individual slurm files
     chunks = list(general_utils.chunks(configs, args.num_processes_per_gpu))
 
-    base_cmd = f"CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3.7 -m dt_adapters.cl_trainer --config-name={args.config} data=[base,{args.data}] model=[base,{args.model}] "
+    base_cmd = f"CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3.7 -m dt_adapters.trainer --config-name={args.config} data=[base,{args.data}] model=[base,{args.model}] "
 
     for i, chunk in enumerate(chunks):
         if args.run_amber:
