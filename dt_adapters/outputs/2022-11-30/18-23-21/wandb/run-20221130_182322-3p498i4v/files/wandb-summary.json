@@ -1,0 +1,1 @@
+{"train/epoch": 5, "_timestamp": 1669861478.4482467, "_runtime": 75.60313773155212, "_step": 1157, "train/action_pred_loss": 0.05541280657052994, "train/return_pred_loss": 0.0, "train/max_norm": 0.0039470917545259, "train/total_norm": 0.1459064781665802, "time_per_iter": 0.03374338150024414}

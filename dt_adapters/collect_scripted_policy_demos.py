@@ -33,13 +33,16 @@ from dt_adapters.mw_utils import (
 from dt_adapters.mw_constants import OBJECTS_TO_ENV
 from dt_adapters.general_utils import split
 import dt_adapters.data.utils as data_utils
+from dt_adapters.envs.make_env import env_constructor
 from metaworld.envs.mujoco.env_dict import ALL_V2_ENVIRONMENTS
 from metaworld.policies import *
+from dt_adapters.models.state_embedding_net import StateEmbeddingNet
 
 
 def rollout(
     env,
     agent,
+    config,
     *,
     max_episode_length=np.inf,
     animated=False,
@@ -52,22 +55,23 @@ def rollout(
     actions = []
     rewards = []
     dones = []
+
     last_obs = env.reset()
+    states.append(last_obs)
+
+    frames = {
+        f"{camera_name}": [
+            env.sim.render(height=256, width=256, camera_name=camera_name)
+        ]
+        for camera_name in config.data.image_keys
+    }
+
     agent.reset()
     episode_length = 0
     traj_success = False
 
-    frames = dd(list)
-
-    if animated:
-        for k, v in last_obs.items():
-            if k != "state":
-                frames[k].append(v)
-
-    states.append(last_obs["state"])
-
     while episode_length < (max_episode_length or np.inf):
-        a = agent.get_action(last_obs["state"])
+        a = agent.get_action(last_obs)
         a[:3] = np.clip(a[:3], -1, 1)  # clip action
         obs, reward, terminate, info = env.step(a)
         terminate |= bool(info["success"])
@@ -85,13 +89,18 @@ def rollout(
         else:
             dones.append(0)
 
-        states.append(obs["state"])
+        states.append(obs)
         last_obs = obs
 
-        if animated:
-            for k, v in last_obs.items():
-                if k != "state":
-                    frames[k].append(v)
+        last_frames = {
+            f"{camera_name}": env.sim.render(
+                height=256, width=256, camera_name=camera_name
+            )
+            for camera_name in config.data.image_keys
+        }
+
+        for k, v in last_frames.items():
+            frames[k].append(v)
 
     for k, v in frames.items():
         frames[k] = np.array(v)
@@ -112,24 +121,31 @@ def collect_dataset(config, envs, results_queue, wandb_run):
             continue
 
         print(env_name)
-        env = initialize_env(
-            env_name,
-            obj_randomization=True,
-            hide_goal=False,
-            observation_mode="state_image",
+        # env = initialize_env(
+        #     env_name,
+        #     obj_randomization=True,
+        #     hide_goal=False,
+        #     observation_mode="state_image",
+        # )
+        env = env_constructor(
+            env_name=env_name,
+            config=config,
+            device="cuda",
         )
+
         videos = []
 
         total_success = 0
         # for i in range(DEMOS_PER_ENV):
         while total_success < config.demos_per_env:
-            path = rollout(env, policy, animated=True, max_episode_length=500)
+            path = rollout(env, policy, config, max_episode_length=500)
             videos.append(path["frames"])  # TODO: needs fixing
             if path["traj_success"]:
                 total_success += 1
 
             if results_queue is not None and path["traj_success"]:
                 results_queue.put((env_name, total_success, path))
+            # time.sleep(5)
 
         print(f"{total_success}/{config.demos_per_env} successes")
 
@@ -146,34 +162,37 @@ def collect_dataset(config, envs, results_queue, wandb_run):
 
 def handle_output(config, results_queue):
     hf = h5py.File(os.path.join(config.data_dir, config.data_file), "w")
-    img_preprocessor, depth_img_preprocessor = data_utils.get_preprocessor(
-        config.vision_backbone
-    )
-    img_encoder, depth_img_encoder = data_utils.get_visual_encoders(
-        config.vision_backbone, "cuda"
-    )
+    # img_preprocessor, depth_img_preprocessor = data_utils.get_preprocessor(
+    #     config.vision_backbone
+    # )
+    # img_encoder, depth_img_encoder = data_utils.get_visual_encoders(
+    #     config.vision_backbone, "cuda"
+    # )
 
-    print("done initializing visual encoders")
+    # print("done initializing visual encoders")
+    state_embedding = StateEmbeddingNet(config.state_encoder)
 
+    count = 0
     while True:
         out = results_queue.get()
+
         if out is not None:
             env_name, episode, path = out
 
-            print(path.keys())
+            count += 1
+            print(count)
+            # if not config.save_image:
+            #     img_feats = data_utils.extract_image_feats(
+            #         path["frames"],
+            #         img_preprocessor,
+            #         img_encoder,
+            #         depth_img_preprocessor,
+            #         depth_img_encoder,
+            #         vision_backbone=config.vision_backbone,
+            #     )
 
-            if not config.save_image:
-                img_feats = data_utils.extract_image_feats(
-                    path["frames"],
-                    img_preprocessor,
-                    img_encoder,
-                    depth_img_preprocessor,
-                    depth_img_encoder,
-                    vision_backbone=config.vision_backbone,
-                )
-
-                print("done extracting features")
-                print(img_feats.shape)
+            #     print("done extracting features")
+            #     print(img_feats.shape)
 
             g = hf.create_group(f"{env_name}/demo_{episode}")
             g.create_dataset("states", data=path["states"])
@@ -181,10 +200,12 @@ def handle_output(config, results_queue):
             g.create_dataset("rewards", data=path["rewards"])
             g.create_dataset("dones", data=path["dones"])
 
-            if config.save_image:
-                g.create_dataset("images", data=path["frames"])
-            else:
-                g.create_dataset("img_feats", data=img_feats.cpu().numpy())
+            # if config.save_image:
+            img = hf.create_group(f"{env_name}/demo_{episode}/img_feats")
+            for k in path["frames"].keys():
+                img.create_dataset(k, data=state_embedding(path["frames"][k]))
+            # else:
+            #     g.create_dataset("img_feats", data=img_feats.cpu().numpy())
         else:
             break
     hf.close()
@@ -207,9 +228,8 @@ def main(config):
         envs = [env for env in ENVS_AND_SCRIPTED_POLICIES if env[0] in config.tasks]
     else:
         envs = ENVS_AND_SCRIPTED_POLICIES
-    print(len(envs))
 
-    # import ipdb; ipdb.set_trace()
+    print(len(envs))
 
     if config.multiprocessing and not config.debug:
         torch.multiprocessing.set_start_method("spawn")
@@ -232,7 +252,12 @@ def main(config):
         for rank in range(num_processes):
             p = mp.Process(
                 target=collect_dataset,
-                args=(config, env_chunks[rank], results_queue, wandb_run),
+                args=(
+                    config,
+                    env_chunks[rank],
+                    results_queue,
+                    wandb_run,
+                ),
             )
             p.start()
             processes.append(p)

@@ -3,7 +3,7 @@
 # training config
 seed: 1                                             # random seed
 save_every: 10                                      # epochs between saving model checkpoints
-eval_every: 1                                       # epochs between evaluating policy
+eval_every: 0                                       # epochs between evaluating policy
 num_steps_per_epoch: 200                            # number of gradient updates per online rollout
 skip_first_eval: False                              # skip first evalution step
 num_epochs: 100                                     # number of training epochs
@@ -20,8 +20,10 @@ num_data_workers: 1                                 # for data loading
 project_name: dt-adapters
 exp_name: test                                      # exp name, used for folder path and wandb group name
 log_to_wandb: False                                 # should we log the metrics to wandb
-log_outputs: True                                   # should we create a new folder and store exp output
+log_outputs: False                                  # should we create a new folder and store exp output
 save_best_model: True                               # save models with the highest success rates
+optimizer: adamw
+use_scheduler: False
 
 # video configs
 log_eval_videos: True                               # should we videos of eval rollouts
@@ -42,13 +44,13 @@ freeze_backbone: False                              # freeze part of the pretrai
 
 # eval parameters
 num_eval_rollouts: 10                               # number of rollouts per evaluation step
-num_processes: 5                                    # number of processes for collecting eval rollouts
+num_processes: 0                                    # number of processes for collecting eval rollouts
 
 model_ckpt_dir:                                     # where to look for model checkpoint
 pretrained_mdl_ckpt_dir:                            # pretrained model checkpoint dir
 resume_experiment: False                            # continue experiment
 mode: train
 
-early_stopping: True                                # terminate training early 
+early_stopping: False                               # terminate training early 
 early_stopping_metric: success_rate                 # which metric to stop early on
 patience: 5                                         # if patience is reached, end training early

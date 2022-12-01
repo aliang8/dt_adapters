@@ -1,0 +1,38 @@
+{
+    "os": "Linux-5.4.0-132-generic-x86_64-with-debian-bullseye-sid",
+    "python": "3.7.9",
+    "heartbeatAt": "2022-12-01T02:23:23.212323",
+    "startedAt": "2022-12-01T02:23:22.823864",
+    "docker": null,
+    "gpu": "NVIDIA GeForce RTX 3090",
+    "gpu_count": 4,
+    "cpu_count": 64,
+    "cuda": null,
+    "args": [
+        "--config-name=offline_finetune",
+        "data=[base,mw_45_5]",
+        "model=[base,transformer]",
+        "general.exp_name=test",
+        "general.log_to_wandb=True",
+        "general.log_outputs=True",
+        "general.skip_first_eval=True",
+        "data.hide_goal=True",
+        "data.observation_mode=state_image",
+        "data.eval_task=bin-picking-v2",
+        "data.vision_backbone=r3m",
+        "general.early_stopping=False",
+        "data.data_file=trajectories_drawer_bin_picking_25.hdf5",
+        "general.eval_every=0"
+    ],
+    "state": "running",
+    "program": "-m dt_adapters.trainer",
+    "git": {
+        "remote": "https://github.com/aliang8/dt_adapters.git",
+        "commit": "75ec392488f0fcd21ca88e8881922a33e90b393e"
+    },
+    "email": "aliangdw@umich.edu",
+    "root": "/data/anthony/dt_adapters",
+    "host": "Amber",
+    "username": "anthony",
+    "executable": "/home/anthony/.conda/envs/dt_adapters/bin/python3"
+}
