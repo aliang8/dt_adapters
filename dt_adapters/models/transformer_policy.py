@@ -23,7 +23,11 @@ class TransformerPolicy(TrajectoryModel):
     def __init__(self, config, **kwargs):
         self.config = config
 
-        self.config.state_dim = 4 + 2 * 2048
+        self.config.state_dim = (
+            self.config.state_encoder.proprio
+            + len(self.config.state_encoder.image_keys)
+            * self.config.state_encoder.r3m_feat_dim
+        )
 
         super().__init__(
             self.config.state_dim,
@@ -42,15 +46,11 @@ class TransformerPolicy(TrajectoryModel):
         self.transformer = TrajectoryGPT2(gpt_config)
 
         # state embedding
-        # self.embed_state = StateEmbeddingNet(self.config.state_encoder)
         self.embed_state = torch.nn.Linear(self.config.state_dim, self.hidden_size)
         self.embed_timestep = nn.Embedding(self.config.max_ep_len, self.hidden_size)
         self.embed_action = torch.nn.Linear(self.act_dim, self.hidden_size)
 
         self.embed_ln = nn.LayerNorm(self.hidden_size)
-
-        # note: we don't predict states or returns for the paper
-        self.predict_state = torch.nn.Linear(self.hidden_size, self.state_dim)
 
         action_predictor = []
         action_predictor.append(nn.Linear(self.hidden_size, self.act_dim))
@@ -107,6 +107,7 @@ class TransformerPolicy(TrajectoryModel):
         transformer_outputs = self.transformer(
             inputs_embeds=stacked_inputs,
             attention_mask=stacked_attention_mask,
+            output_adapter_fusion_attentions=True,
         )
 
         if hasattr(transformer_outputs, "adapter_fusion_attentions"):
@@ -233,14 +234,11 @@ class TransformerPolicy(TrajectoryModel):
         # freeze everything
         for module in [
             self.embed_state,
-            self.embed_return,
             self.embed_action,
             self.embed_timestep,
             self.embed_ln,
             self.predict_action,
-            self.predict_state,
-            self.predict_return,
-            self.transformer,
+            # self.transformer,
         ]:
             for param in module.parameters():
                 param.requires_grad = False

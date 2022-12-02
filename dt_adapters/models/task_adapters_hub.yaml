@@ -1,13 +1,26 @@
-adapter_fusion_layers:
 - ckpt_path: /test/adapter.pth
   name: test
-single_task_adapters:
-- ckpt_path: /test/adapter.pth
-  name: test
-- ckpt_path: /home/anthony/dt_adapters/outputs/dt_ml45_downstream_drawer_put/drawer-open-v2exp-338110/models
-  epoch: 99
-  name: drawer-open-v2
+- best_success_rate: 0.8
+  ckpt_path: /data/anthony/dt_adapters/outputs/r3m_img_box_close_adapter
+  epoch: 50
+  name: box-close-v2
+- best_success_rate: 0.5
+  ckpt_path: /data/anthony/dt_adapters/outputs/r3m_img_bin_picking_adapter_25
+  epoch: 40
+  name: bin-picking-v2
 - best_success_rate: 1.0
-  ckpt_path: /home/anthony/dt_adapters/outputs/dt_ml45_downstream_drawer_put/pick-place-v2exp-406997/models
-  epoch: 76
+  ckpt_path: /data/anthony/dt_adapters/outputs/r3m_img_drawer_open_adapter_25
+  epoch: 10
+  name: drawer-open-v2
+- best_success_rate: 0.7
+  ckpt_path: /data/anthony/dt_adapters/outputs/r3m_img_pick_place_adapter_25
+  epoch: 70
   name: pick-place-v2
+- best_success_rate: 0.1
+  ckpt_path: /data/anthony/dt_adapters/outputs/r3m_img_drawer_put_block_adapter_25
+  epoch: 20
+  name: drawer-put-block-v2-old
+- best_success_rate: 0.2
+  ckpt_path: /data/anthony/dt_adapters/outputs/r3m_img_drawer_put_block_weighted_fusion_25
+  epoch: 60
+  name: drawer-put-block-v2
