@@ -11,6 +11,8 @@ general:
   load_from_ckpt: True
   stage: finetuning
   freeze_backbone: True
+  eval_every: 10
+  skip_first_eval: False
 
 model:
   use_adapters: True

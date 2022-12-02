@@ -24,8 +24,6 @@ exp_name: test                                      # exp name, used for folder 
 log_to_wandb: False                                 # should we log the metrics to wandb
 log_outputs: False                                  # should we create a new folder and store exp output
 save_best_model: True                               # save models with the highest success rates
-optimizer: adamw
-use_scheduler: False
 
 # video configs
 log_eval_videos: True                               # should we videos of eval rollouts

@@ -138,6 +138,10 @@ def find_new_keys(d1, d2, path=""):
         if k == "general":
             continue
 
+        if k not in d2:
+            print(f"{bcolors.OKBLUE} + {k}: {d1[k]} {bcolors.ENDC}")
+            continue
+
         if type(d1[k]) is dict:
             find_new_keys(d1[k], d2[k], path=f"{path} -> {k}" if path else k)
 
@@ -149,7 +153,7 @@ def find_new_keys(d1, d2, path=""):
             print("\n".join(result))
 
 
-def load_model_from_ckpt(model, cfg, model_ckpt_dir, optimizer, scheduler=None):
+def load_model_from_ckpt(model, cfg, model_ckpt_dir, strict=True):
     # loading from previous checkpoint
     ckpt_file = sorted(glob.glob(f"{model_ckpt_dir}/models/*"))[-1]
     print(f"loading pretrained model from {ckpt_file}")
@@ -168,48 +172,18 @@ def load_model_from_ckpt(model, cfg, model_ckpt_dir, optimizer, scheduler=None):
     print("New keys:")
     find_new_keys(OmegaConf.to_container(cfg), OmegaConf.to_container(prev_cfg))
 
-    model.load_state_dict(state_dict["model"], strict=True)
+    model.load_state_dict(state_dict["model"], strict=strict)
+    return model, epoch
+
+
+def load_optimizer(model_ckpt_dir, optimizer, scheduler=None):
+    ckpt_file = sorted(glob.glob(f"{model_ckpt_dir}/models/*"))[-1]
+    state_dict = torch.load(ckpt_file)
+
     optimizer.load_state_dict(state_dict["optimizer"])
 
     if scheduler:
         scheduler.load_state_dict(state_dict["scheduler"])
-    return model, epoch
-
-
-# adapter tools
-# log adapter info to hub
-import os
-import yaml
-import dt_adapters.constants as constants
-
-
-def update_adapter_hub(adapter_name, ckpt_dir, epoch, best_perf):
-    # open the hub file
-    with open(constants.HUB_FILE, "r") as f:
-        try:
-            adapter_info = yaml.safe_load(f)
-        except yaml.YAMLError as exc:
-            print(exc)
-
-        new_adapter = {
-            "name": adapter_name,
-            "ckpt_path": ckpt_dir,  # where is this adpater file stored
-            "epoch": epoch,
-            "best_success_rate": best_perf,
-        }
-
-        names = [a["name"] for a in adapter_info]
-        index = names.index(adapter_name)
-
-        # insert new adapter into library
-        if index == -1:
-            adapter_info.append(new_adapter)
-        else:
-            adapter_info[index] = new_adapter
-
-    # overwrite the file
-    with open(constants.HUB_FILE, "w") as f:
-        yaml.safe_dump(adapter_info, f)
 
 
 def save_model(ckpt_file, model, optimizer, scheduler=None, metadata=None):

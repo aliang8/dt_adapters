@@ -13,4 +13,3 @@ image_height: 256
 vision_backbone: clip                             # which model to use for extracting visual features [clip|resnet]
 vision_mdl_key: openai/clip-vit-base-patch32      
 observation_mode: state                           # what modality of information to use as state representation [state|image|state_image]
-num_demos_per_task: -1

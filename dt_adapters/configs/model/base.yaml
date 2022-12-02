@@ -16,10 +16,13 @@ state_encoder:
   state_dim: ${data.state_dim}
   act_dim: ${data.act_dim}
   observation_mode: ${data.observation_mode}
+  proprio: ${data.proprio}
   
   vision_backbone: ${data.vision_backbone}                 # clip | resnet
   clip_feat_dim: 768                                       # output feature dim of CLIP vision model
   resnet_feat_dim: 1000
+  r3m_feat_dim: 2048
+
   image_keys: ${data.image_keys}                           # keys to different image inputs (e.g. overhead_rgb, overhead_depth, etc)
   num_img_proj_layers: 0                                   # number of mlp projection layers after vision encoder
   num_ll_enc_layers: 0                                     # number of mlp projection layers after ll state encoder
@@ -32,12 +35,18 @@ state_encoder:
 
 # adapter configuration
 use_adapters: False                                        # do we add an adapter during training
+use_adapter_fusion: False                                  # load existing adapters for fusion
 adapter_task_name: ${data.eval_task}                       # this should be the task name
 
-use_adapter_fusion: False                                  # load existing adapters for fusion
-adapters_to_use:                                           # which pretrained adapters do we want to use, see hub file for all the available adapters
+adapter_cfg:
+  adapter:                                    
+    config: pfeiffer+inv            
+    nonlinearity: none 
+    reduction_factor: none
 
-adapter:                                    
-  config: pfeiffer+inv            
-  nonlinearity: none 
-  reduction_factor: none
+  fusion:
+    fusion_method: weighted-composition # bert-fusion
+    weights_initialization: uniform
+    unfreeze_task_adapter: False
+
+  adapters_to_use:                                           # which pretrained adapters do we want to use, see hub file for all the available adapters

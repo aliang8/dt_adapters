@@ -94,7 +94,7 @@ def rollout(
     # state_mean = None
     # state_std = None
 
-    state_dim = 4 + 2 * 2048
+    state_dim = model.state_dim
     act_dim = model.act_dim
 
     with torch.no_grad():
@@ -116,7 +116,6 @@ def rollout(
 
         actions = torch.zeros((0, act_dim), device=device, dtype=torch.float32)
         rewards = torch.zeros(0, device=device, dtype=torch.float32)
-        use_rtg_mask = torch.tensor([attend_to_rtg]).reshape(1, 1).to(device)
         timesteps = torch.tensor(0, device=device, dtype=torch.long).reshape(1, 1)
 
         episode_length = 0
@@ -137,8 +136,6 @@ def rollout(
                 obj_ids=None,
                 timesteps=timesteps.to(dtype=torch.long),
                 use_means=use_means,
-                use_rtg_mask=use_rtg_mask,
-                sample_return_dist=config.model.predict_return_dist,
             )
 
             actions[-1] = action

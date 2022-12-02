@@ -30,7 +30,10 @@ from tqdm import tqdm
 from collections import OrderedDict
 from omegaconf import OmegaConf
 import torch.multiprocessing as mp
+import seaborn as sns
 from functools import partial
+import matplotlib.pyplot as plt
+from PIL import Image
 
 
 from torch.utils.data import DataLoader
@@ -47,10 +50,8 @@ import dt_adapters.eval_utils as eval_utils
 from dt_adapters.data.utils import get_visual_encoders
 from dt_adapters.rollout import rollout, mp_rollout
 import dt_adapters.constants as constants
+from dt_adapters.hub import TaskAdapterHub
 
-
-from transformers.adapters.configuration import AdapterConfig
-import transformers.adapters.composition as ac
 
 from garage.envs import GymEnv
 from garage.np import discount_cumsum, stack_tensor_dict_list
@@ -79,7 +80,8 @@ class Trainer(object):
         self.setup_logging()
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        self.setup_model_and_optimizer()
+        self.setup_model()
+        self.setup_optimizer()
 
         # setup dataset
         start = time.time()
@@ -209,11 +211,13 @@ class Trainer(object):
 
             if self.config.model.use_adapters:
                 if self.config.model.use_adapter_fusion:
-                    # save the fusion layer
-                    self.model.transformer.save_adapter_fusion(
-                        self.ckpt_dir,
-                        OmegaConf.to_container(self.config.model.adapters_to_use),
+                    adapters = OmegaConf.to_container(
+                        self.config.model.adapter_cfg.adapters_to_use
                     )
+                    adapters.append(self.config.data.eval_task)
+
+                    # save the fusion layer
+                    self.model.transformer.save_adapter_fusion(self.ckpt_dir, adapters)
                     self.model.transformer.save_all_adapters(self.ckpt_dir)
                 else:
                     # save just the adapter weights
@@ -223,7 +227,7 @@ class Trainer(object):
                         meta_dict={"epoch": epoch, "config": self.config},
                     )
 
-                general_utils.update_adapter_hub(
+                self.hub.update_hub(
                     adapter_name=self.config.data.eval_task,
                     ckpt_dir=self.ckpt_dir,
                     epoch=epoch,
@@ -240,17 +244,47 @@ class Trainer(object):
                     path, self.model, self.optimizer, self.scheduler, metadata
                 )
 
-    def setup_model_and_optimizer(self):
+    def setup_model(self):
         if self.config.model.model_cls == "transformer":
             model_cls = TransformerPolicy
         elif self.config.model.model_cls == "mlp_policy":
             model_cls = MLPPolicy
 
         model = model_cls(self.config.model)
-        model = model.to(self.device)
-        model.train()
-        self.model = model
 
+        if self.config.model.use_adapters:
+            self.hub = TaskAdapterHub(self.config.model.adapter_cfg)
+
+            # create a new adapter for the task
+            adapter_name = self.config.model.adapter_task_name
+            self.hub.insert_new_adapter(adapter_name, model)
+
+            # add a fusion layer
+            if self.config.model.use_adapter_fusion:
+                self.hub.insert_new_fusion_layer(adapter_name, model)
+
+            print(model.transformer.adapter_summary())
+
+        if self.config.load_from_ckpt:
+            model, start_epoch = general_utils.load_model_from_ckpt(
+                model, self.config, self.config.model_ckpt_dir, strict=False
+            )
+            if self.config.resume_experiment:
+                self.start_epoch = start_epoch
+
+        print("base model params: ", general_utils.count_parameters(model))
+
+        if self.config.freeze_backbone:
+            model.freeze_backbone()
+
+        self.model = model.to(self.device)
+        self.model.train()
+        # print(self.model)
+
+        print("final model params: ", general_utils.count_parameters(model))
+        self.model.share_memory()
+
+    def setup_optimizer(self):
         # setup optimizer
         if self.config.optimizer == "adam":
             optim_cls = torch.optim.Adam
@@ -260,7 +294,7 @@ class Trainer(object):
             raise NotImplementedError()
 
         self.optimizer = optim_cls(
-            model.parameters(),
+            self.model.parameters(),
             lr=self.config.lr,
             weight_decay=self.config.weight_decay,
         )
@@ -273,97 +307,10 @@ class Trainer(object):
         else:
             self.scheduler = None
 
-        if self.config.load_from_ckpt:
-            model, self.start_epoch = general_utils.load_model_from_ckpt(
-                model,
-                self.config,
-                self.config.model_ckpt_dir,
-                self.optimizer,
-                self.scheduler,
+        if self.config.resume_experiment:
+            general_utils.load_optimizer(
+                self.config.model_ckpt_dir, self.optimizer, self.scheduler
             )
-
-        print("base model params: ", general_utils.count_parameters(model))
-
-        if self.config.freeze_backbone:
-            model.freeze_backbone()
-
-        if self.config.model.use_adapters:
-            # Look at what trained adapters are already available
-            with open(constants.HUB_FILE, "r") as f:
-                try:
-                    adapter_info = yaml.safe_load(f)
-                except yaml.YAMLError as exc:
-                    print(exc)
-
-                single_task_adapters = adapter_info["single_task_adapters"]
-                print("-" * 50)
-                st_library = {a["name"]: a["ckpt_path"] for a in single_task_adapters}
-                print(f"{len(st_library)} adapters available: ")
-                pprint(st_library)
-                print("-" * 50)
-
-            task_name = self.config.model.adapter_task_name
-            cfg = self.config.model.adapter
-            cfg = OmegaConf.to_container(cfg)
-            cfg["nonlinearity"] = None
-            cfg["reduction_factor"] = None
-
-            if self.config.model.use_adapter_fusion:
-                # For now we only train a new fusion layer
-                # maybe consider training a new adapter in addition to fusion
-                adapters_to_use = OmegaConf.to_container(
-                    self.config.model.adapters_to_use
-                )
-
-                # load adapters to use
-                print("Loading adapter weights...")
-                print(f"Adapters to use: {adapters_to_use}")
-
-                # check that all adapters exist
-                for adapter_name in adapters_to_use:
-                    if not adapter_name in st_library:
-                        raise Exception("{adapter_name} not a valid adapter")
-
-                for adapter_name in adapters_to_use:
-                    adapter_ckpt_path = st_library[adapter_name]
-                    print(f"Loading {adapter_name} from {adapter_ckpt_path}")
-                    adapter_name = model.transformer.load_adapter(adapter_ckpt_path)
-
-                # add the new adapter
-                # adapters_to_use.append(task_name)
-                model.transformer.add_adapter_fusion(adapters_to_use)
-
-                # set the fusion layer as active
-                fusion_layer = ac.Fuse(*adapters_to_use)
-                model.transformer.set_active_adapters(fusion_layer)
-
-                # make sure all the other weights are frozen except fusion layer
-                model.transformer.train_adapter_fusion(fusion_layer)
-            else:
-                # also add an adapter for the new task
-                if task_name in st_library:
-                    print(
-                        f"Trained adapter already exists for: {task_name}, will be overwriting."
-                    )
-
-                print(f"Training new adapter for: {task_name}")
-                # train a new set of adapter weights
-                adapter_config = AdapterConfig.load(**cfg)
-                model.transformer.add_adapter(task_name, config=adapter_config)
-
-                # freeze all model weights except of those of this adapter
-                model.transformer.train_adapter([task_name])
-
-                # set the adapters to be used in every forward pass
-                model.transformer.set_active_adapters(task_name)
-
-        if self.config.freeze_backbone:
-            model.freeze_backbone()
-
-        print(self.model)
-
-        print("final model params: ", general_utils.count_parameters(model))
-        self.model.share_memory()
 
     def train_single_iteration(self):
         # iterate over dataset
@@ -416,6 +363,36 @@ class Trainer(object):
                 "train/max_norm": max_norm,
                 "train/total_norm": total_norm,
             }
+
+            if model_out.adapter_fusion_attentions is not None:
+                # get layer-wise attention scores and log as heatmap
+                attn_matrix = None
+
+                attn_scores = model_out.adapter_fusion_attentions
+                key = list(attn_scores.keys())[0]
+
+                for idx in range(self.config.model.gpt2.n_layer):
+                    layer_weights = attn_scores[key][idx]["output_adapter"][
+                        np.newaxis, :
+                    ]
+
+                    if attn_matrix is None:
+                        attn_matrix = layer_weights
+                    else:
+                        attn_matrix = np.concatenate(
+                            [attn_matrix, layer_weights], axis=0
+                        )
+
+                plt.clf()
+                ax = sns.heatmap(
+                    data=attn_matrix, vmin=0, vmax=1, annot=True, cmap="YlGnBu"
+                )
+                fig = ax.figure
+                # need to do this weird hack to first convert to PIL Image
+                img = Image.frombytes(
+                    "RGB", fig.canvas.get_width_height(), fig.canvas.tostring_rgb()
+                )
+                log_dict["train/fusion_attn_heatmap"] = wandb.Image(img)
 
             # update learning rates
             if self.scheduler is not None:
@@ -473,7 +450,7 @@ class Trainer(object):
         self.save_model(epoch, self.eval_metrics)
 
 
-@hydra.main(config_path="configs", config_name="train", version_base="1.1")
+@hydra.main(config_path="configs", config_name="train")
 def main(config):
     OmegaConf.set_struct(config, False)
     config.update(config.general)
