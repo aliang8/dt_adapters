@@ -2,50 +2,49 @@ from metaworld.envs.mujoco.env_dict import ALL_V2_ENVIRONMENTS
 from collections import namedtuple
 from dt_adapters.envs.obs_wrappers import MuJoCoPixelObs, StateEmbedding
 from dt_adapters.envs.gym_env import GymEnv
+from typing import Optional, Tuple, Dict, Union, List
 
 
 def env_constructor(
-    env_name,
-    config,
-    device="cuda",
-    # image_width=256,
-    # image_height=256,
-    # camera_name=None,
-    # embedding_name="resnet50",
-    # pixel_based=True,
-    # render_gpu_id=0,
-    # load_path="",
-    # proprio=False,
-    # lang_cond=False,
-    # gc=False,
-):
+    domain: str,
+    env_name: str,
+    image_keys: List[str] = [],
+    vision_backbone: str = None,
+    image_width: int = 128,
+    image_height: int = 128,
+    proprio: int = 0,
+    device: str = "cpu",
+) -> GymEnv:
+    """
+    Creates environment class and wrappers for using image observations.
+    """
 
-    ## Need to do some special environment config for the metaworld environments
-    # if "v2" in env_name:
-    e = ALL_V2_ENVIRONMENTS[env_name]()
-    e._freeze_rand_vec = False
-    e._set_task_called = True
-    e._partially_observable = False
-    # e.spec = namedtuple("spec", ["id", "max_episode_steps"])
-    # e.spec.id = env_name
-    # e.spec.max_episode_steps = 500
+    # need to do some special environment config for the metaworld environments
+    if domain == "metaworld":
+        env = ALL_V2_ENVIRONMENTS[env_name]()
+        env._freeze_rand_vec = False
+        env._set_task_called = True
+        env._partially_observable = False
+    else:
+        print(f"{domain} not supported")
 
-    if "image" in config.data.observation_mode:
-        ## Wrap in pixel observation wrapper
-        e = MuJoCoPixelObs(
-            e,
-            width=config.data.image_width,
-            height=config.data.image_height,
-            camera_names=config.data.image_keys,
+    if len(image_keys) > 0:
+        # wrap in pixel observation wrapper
+        env = MuJoCoPixelObs(
+            env,
+            width=image_width,
+            height=image_height,
+            camera_names=image_keys,
             device_id=0,
         )
-        ## Wrapper which encodes state in pretrained model
-        e = StateEmbedding(
-            e,
-            vision_backbone=config.data.vision_backbone,
-            device=device,
-            proprio=config.data.proprio,
-        )
-        e = GymEnv(e)
 
-    return e
+        # wrapper which encodes state in pretrained model
+        env = StateEmbedding(
+            env,
+            vision_backbone=vision_backbone,
+            device=device,
+            proprio=proprio,
+        )
+        env = GymEnv(env)
+
+    return env

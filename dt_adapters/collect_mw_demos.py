@@ -126,7 +126,8 @@ def collect_dataset(config, envs):
 
 @hydra.main(config_path="configs", config_name="data_collection")
 def main(config):
-    envs = ENVS_AND_SCRIPTED_POLICIES
+    # envs = ENVS_AND_SCRIPTED_POLICIES
+    envs = [env for env in ENVS_AND_SCRIPTED_POLICIES if env[0] in config.tasks]
     collect_dataset(config, envs)
 
 

@@ -42,7 +42,8 @@ from dt_adapters.models.state_embedding_net import StateEmbeddingNet
 def rollout(
     env,
     agent,
-    config,
+    # config,
+    image_keys,
     *,
     max_episode_length=np.inf,
     animated=False,
@@ -63,7 +64,7 @@ def rollout(
         f"{camera_name}": [
             env.sim.render(height=256, width=256, camera_name=camera_name)
         ]
-        for camera_name in config.data.image_keys
+        for camera_name in image_keys
     }
 
     agent.reset()
@@ -96,7 +97,7 @@ def rollout(
             f"{camera_name}": env.sim.render(
                 height=256, width=256, camera_name=camera_name
             )
-            for camera_name in config.data.image_keys
+            for camera_name in image_keys
         }
 
         for k, v in last_frames.items():

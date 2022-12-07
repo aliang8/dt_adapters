@@ -2,7 +2,7 @@
 defaults:
   - model: 
     - base
-    - decision_transformer
+    - transformer
   - data: 
     - base 
     - mw_blocks_only

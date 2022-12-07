@@ -42,10 +42,6 @@ target_return: 500                                  # conditioning RTG for infer
 load_from_ckpt: False                               # load pretrained model weights 
 freeze_backbone: False                              # freeze part of the pretrained model weights 
 
-# eval parameters
-num_eval_rollouts: 10                               # number of rollouts per evaluation step
-num_processes: 0                                    # number of processes for collecting eval rollouts
-
 model_ckpt_dir:                                     # where to look for model checkpoint
 pretrained_mdl_ckpt_dir:                            # pretrained model checkpoint dir
 resume_experiment: False                            # continue experiment
@@ -54,3 +50,20 @@ mode: train
 early_stopping: False                               # terminate training early 
 early_stopping_metric: success_rate                 # which metric to stop early on
 patience: 5                                         # if patience is reached, end training early
+device: cuda
+
+rollouts: 
+  _target_: dt_adapters.rollout.Rollout
+  domain: ${data.env_name}
+  env_name: ${data.eval_task}
+  num_eval_rollouts: 10                               # number of rollouts per evaluation step
+  num_processes: 0                                    # number of processes for collecting eval rollouts
+
+  image_keys: ${data.image_keys}
+  vision_backbone: ${data.vision_backbone}
+  image_width: ${image_width}
+  image_height: ${image_height}
+  proprio: ${data.proprio}
+  max_episode_length: ${data.max_episode_length}
+  log_eval_videos: ${log_eval_videos}
+  device: ${device}
