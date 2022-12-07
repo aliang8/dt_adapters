@@ -1,6 +1,9 @@
+device: cuda
 hidden_size: 768
 state_dim: ${data.state_dim}                              
 act_dim: ${data.act_dim}
+goal_conditional: ${data.goal_conditional}
+
 emb_state_separate: False                                  # separately encode each component of the state (e.g. arm-pose, obj-pose, etc)
 stochastic: False                                          # parameterize action as a Gaussian distribution
 use_entropy: False                                         # add entropy regularization to encourage exploration during online training
@@ -15,10 +18,9 @@ state_encoder:
   hidden_size: ${model.hidden_size}                   
   state_dim: ${data.state_dim}
   act_dim: ${data.act_dim}
-  observation_mode: ${data.observation_mode}
   proprio: ${data.proprio}
   
-  vision_backbone: ${data.vision_backbone}                 # clip | resnet
+  vision_backbone: clip                                    # clip | resnet
   clip_feat_dim: 768                                       # output feature dim of CLIP vision model
   resnet_feat_dim: 1000
   r3m_feat_dim: 2048

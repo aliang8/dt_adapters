@@ -23,6 +23,7 @@ import glob
 import h5py
 import yaml
 import hydra
+import einops
 import numpy as np
 from pathlib import Path
 from pprint import pprint
@@ -39,8 +40,6 @@ from PIL import Image
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset, Sampler, RandomSampler
 
-
-from dt_adapters.data.demo_dataset import DemoDataset
 from dt_adapters.models.transformer_policy import TransformerPolicy
 from dt_adapters.models.mlp_policy import MLPPolicy
 from dt_adapters.sampler import ImportanceWeightBatchSampler
@@ -48,7 +47,6 @@ import dt_adapters.general_utils as general_utils
 import dt_adapters.mw_utils as mw_utils
 import dt_adapters.eval_utils as eval_utils
 from dt_adapters.data.utils import get_visual_encoders
-from dt_adapters.rollout import rollout, mp_rollout
 import dt_adapters.constants as constants
 from dt_adapters.hub import TaskAdapterHub
 
@@ -85,8 +83,9 @@ class Trainer(object):
 
         # setup dataset
         start = time.time()
-        self.dataset = DemoDataset(self.config.data, stage=config.stage)
+        self.dataset = hydra.utils.instantiate(self.config.data, _recursive_=False)
         self.dataset[0]
+
         print(f"dataset len: {len(self.dataset)}")
         print(f"stage: {config.stage}, took {time.time() - start} seconds to load data")
 
@@ -160,17 +159,13 @@ class Trainer(object):
         start = time.time()
 
         self.model.eval()
+
         log_eval_videos = (
             epoch % self.config.log_eval_videos_every == 0 or self.config.mode == "eval"
         ) and self.config.log_eval_videos
 
-        eval_rollouts = mp_rollout(
-            self.config,
-            self.model,
-            use_means=True,
-            attend_to_rtg=False,
-            log_eval_videos=log_eval_videos,
-        )
+        rollout = hydra.utils.instantiate(self.config.rollouts, _recursive_=False)
+        eval_rollouts = rollout.mp_rollouts(self.model)
 
         # compute metrics and log
         metrics = eval_utils.compute_eval_metrics(eval_rollouts)
@@ -245,12 +240,10 @@ class Trainer(object):
                 )
 
     def setup_model(self):
-        if self.config.model.model_cls == "transformer":
-            model_cls = TransformerPolicy
-        elif self.config.model.model_cls == "mlp_policy":
-            model_cls = MLPPolicy
+        model = hydra.utils.instantiate(self.config.model, _recursive_=False)
 
-        model = model_cls(self.config.model)
+        if self.config.freeze_backbone:
+            model.freeze_backbone()
 
         if self.config.model.use_adapters:
             self.hub = TaskAdapterHub(self.config.model.adapter_cfg)
@@ -269,13 +262,11 @@ class Trainer(object):
             model, start_epoch = general_utils.load_model_from_ckpt(
                 model, self.config, self.config.model_ckpt_dir, strict=False
             )
+
             if self.config.resume_experiment:
                 self.start_epoch = start_epoch
 
         print("base model params: ", general_utils.count_parameters(model))
-
-        if self.config.freeze_backbone:
-            model.freeze_backbone()
 
         self.model = model.to(self.device)
         self.model.train()
@@ -316,21 +307,18 @@ class Trainer(object):
         # iterate over dataset
         for batch in self.data_loader:
             start = time.time()
+
             # put tensors on gpu
             batch = general_utils.to_device(batch, self.device)
 
             action_target = torch.clone(batch["actions"])
 
-            model_out = self.model.forward(
-                **batch,
-                target_actions=action_target,
-                use_means=False,  # sample during training
-            )
+            model_out = self.model.forward(**batch)
 
-            act_dim = model_out["action_preds"].shape[2]
             mask = batch["attention_mask"].reshape(-1) > 0
-            action_preds = model_out["action_preds"].reshape(-1, act_dim)[mask]
-            action_target = action_target.reshape(-1, act_dim)[mask]
+            action_preds = model_out["action_preds"]
+            action_preds = einops.rearrange(action_preds, "B T D -> (B T) D")[mask]
+            action_target = einops.rearrange(action_target, "B T D -> (B T) D")[mask]
 
             loss_fn_inputs = {
                 "action_preds": action_preds,
@@ -364,7 +352,7 @@ class Trainer(object):
                 "train/total_norm": total_norm,
             }
 
-            if model_out.adapter_fusion_attentions is not None:
+            if model_out.adapter_fusion_attentions:
                 # get layer-wise attention scores and log as heatmap
                 attn_matrix = None
 

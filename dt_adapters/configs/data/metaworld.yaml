@@ -1,0 +1,20 @@
+# 45-5 task split in the MW benchmark
+
+data_dir: /data/anthony/dt_adapters/data/metaworld_data/
+data_file: trajectories_drawer_open.hdf5
+env_name: metaworld                 
+
+state_dim: 39                                     # all MW environments have the same state vector structure
+act_dim: 4                                        # position control [x,y,z,gripper]
+max_episode_length: 500                           # max number of steps allowed in MW
+hide_goal: False                                  # the last three values in state correspond to goal position, mask this during pretraining
+obj_randomization: False                          # randomize object position every episode
+proprio: 4
+
+image_keys: 
+  - corner
+  # - corner2
+  # - corner3
+  - topview
+
+eval_task: ???
