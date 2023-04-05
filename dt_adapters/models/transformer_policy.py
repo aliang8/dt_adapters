@@ -22,6 +22,8 @@ from torch.distributions.transforms import TanhTransform
 from typing import Optional, Tuple, Dict, Union
 from omegaconf import DictConfig
 
+img_feat_dim = {"clip": 1024, "resnet50": 2048, "r3m": 2048}
+
 
 class TransformerPolicy(TrajectoryModel):
     def __init__(
@@ -34,7 +36,7 @@ class TransformerPolicy(TrajectoryModel):
         action_tanh: bool,
         freeze_bottom_n_layers: int = 0,
         goal_conditional: str = None,
-        state_encoder: Optional[DictConfig] = None,
+        state_encoder_cfg: Optional[DictConfig] = None,
         gpt2_cfg: Optional[DictConfig] = None,
         device: str = "cpu",
         **kwargs,
@@ -46,9 +48,11 @@ class TransformerPolicy(TrajectoryModel):
         )
 
         # concatenate proprio with the view embeddings
+
         self.effective_input_dim = (
-            state_encoder.proprio
-            + len(state_encoder.image_keys) * state_encoder.r3m_feat_dim
+            state_encoder_cfg.proprio
+            + len(state_encoder_cfg.image_keys)
+            * img_feat_dim[state_encoder_cfg.vision_backbone]
         )
         self.goal_conditional = goal_conditional
 
@@ -88,7 +92,7 @@ class TransformerPolicy(TrajectoryModel):
         timesteps: torch.Tensor,
         goal_states: Optional[torch.Tensor] = None,
         img_feats: Union[torch.Tensor] = None,
-        goal_img_feats: Optional[torch.Tensor] = None,
+        goal_img_feats: Dict[str, torch.Tensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
         **kwargs,
     ) -> general_utils.AttrDict:
@@ -99,8 +103,8 @@ class TransformerPolicy(TrajectoryModel):
             actions: Tensor[B, T, act_dim], actions
             timesteps: Tensor[B, T], timesteps
             goal_states: Tensor[B, T_goal, state_dim] goal states
-            img_feats: Union[Tensor[B, T, obs_dim]] dictionary of image observation features
-            goal_img_feats: Union[Tensor[B, T_goal, obs_dim]]
+            img_feats: Dict[str, Tensor[B, T, obs_dim]] dictionary of image observation features
+            goal_img_feats: Dict[str, Tensor[B, T_goal, obs_dim]]
             attention_mask: Tensor[B, T]
             B: batch size, T: sequence length, E: observation embedding size, G: goal size.
         Returns:
@@ -109,7 +113,9 @@ class TransformerPolicy(TrajectoryModel):
                 adapter_attentions
         """
         B, T = states.shape[0], states.shape[1]
-        goal_seq_len = goal_states.shape[1]
+
+        if goal_states:
+            goal_seq_len = goal_states.shape[1]
 
         if attention_mask is None:
             # attention mask for GPT: 1 if can be attended to, 0 if not
@@ -206,8 +212,8 @@ class TransformerPolicy(TrajectoryModel):
         states: torch.Tensor,
         actions: torch.Tensor,
         timesteps: torch.Tensor,
-        goal_state: Optional[torch.Tensor] = None,
-        goal_img_feats: Optional[torch.Tensor] = None,
+        goal_states: Optional[torch.Tensor] = None,
+        goal_img_feats: Optional[Dict[str, torch.Tensor]] = None,
         **kwargs,
     ) -> torch.Tensor:
         """
@@ -218,7 +224,7 @@ class TransformerPolicy(TrajectoryModel):
             actions: Tensor[T, D_A], actions
             timesteps: Tensor[T], timesteps
             goal_state: Tensor[T_goal, D_S] goal states
-            img_feats: Union[Tensor[T, D_O]] dictionary of image observation features
+            goal_img_feats: Dict[str, Tensor[T, D_O]] dictionary of image observation features
             B: batch size, T: sequence length
         Returns:
             action: torch.Tensor[D_A]
@@ -246,9 +252,19 @@ class TransformerPolicy(TrajectoryModel):
                     dim=1,
                 )
 
+        if goal_states is not None:
+            model_input["goal_states"] = einops.rearrange(goal_states, "T D -> 1 T D")
+
+        if goal_img_feats is not None:
+            model_input["goal_img_feats"] = dict()
+            for k in goal_img_feats:
+                model_input["goal_img_feats"][k] = einops.rearrange(
+                    goal_img_feats[k], "T D -> 1 T D"
+                )
+
         model_out = self.forward(**model_input, **kwargs)
 
-        # B, T, D_A
+        # [B, T, D_A]
         return model_out["action_preds"][0, -1]
 
     def freeze_backbone(self):

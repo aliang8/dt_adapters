@@ -13,8 +13,8 @@ proprio: 4
 
 image_keys: 
   - corner
-  # - corner2
+  - corner2
   # - corner3
-  - topview
+  # - topview
 
-eval_task: ???
+eval_task:

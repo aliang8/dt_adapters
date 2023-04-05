@@ -2,6 +2,12 @@ device: cuda
 hidden_size: 768
 state_dim: ${data.state_dim}                              
 act_dim: ${data.act_dim}
+
+state_encoder_cfg:
+  proprio: ${data.proprio}
+  image_keys: ${data.image_keys}
+  vision_backbone: ${data.vision_backbone}
+
 goal_conditional: ${data.goal_conditional}
 
 emb_state_separate: False                                  # separately encode each component of the state (e.g. arm-pose, obj-pose, etc)
@@ -14,26 +20,27 @@ train_prediction_head: False
 train_state_embeddings: False
 
 # encoding network for the state
-state_encoder:
-  hidden_size: ${model.hidden_size}                   
-  state_dim: ${data.state_dim}
-  act_dim: ${data.act_dim}
-  proprio: ${data.proprio}
+# state_encoder:
+#   hidden_size: ${model.hidden_size}                   
+#   state_dim: ${data.state_dim}
+#   act_dim: ${data.act_dim}
+#   proprio: ${data.proprio}
   
-  vision_backbone: clip                                    # clip | resnet
-  clip_feat_dim: 768                                       # output feature dim of CLIP vision model
-  resnet_feat_dim: 1000
-  r3m_feat_dim: 2048
+#   vision_backbone: ${data.vision_backbone}                                 # clip | resnet
+#   clip_feat_dim: 768                                       # output feature dim of CLIP vision model
+#   resnet_feat_dim: 1000
+#   resnet50_feat_dim: 2048
+#   r3m_feat_dim: 2048
 
-  image_keys: ${data.image_keys}                           # keys to different image inputs (e.g. overhead_rgb, overhead_depth, etc)
-  num_img_proj_layers: 0                                   # number of mlp projection layers after vision encoder
-  num_ll_enc_layers: 0                                     # number of mlp projection layers after ll state encoder
+#   image_keys: ${data.image_keys}                           # keys to different image inputs (e.g. overhead_rgb, overhead_depth, etc)
+#   num_img_proj_layers: 0                                   # number of mlp projection layers after vision encoder
+#   num_ll_enc_layers: 0                                     # number of mlp projection layers after ll state encoder
 
-  # some extra params for metaworld
-  pos_hand: 3
-  obs_obj_max_len: 14
-  gripper_distance_apart: 1
-  goal_pos: 3
+#   # some extra params for metaworld
+#   pos_hand: 3
+#   obs_obj_max_len: 14
+#   gripper_distance_apart: 1
+#   goal_pos: 3
 
 # adapter configuration
 use_adapters: False                                        # do we add an adapter during training

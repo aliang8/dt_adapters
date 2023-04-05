@@ -69,7 +69,14 @@ class Rollout:
         self.num_eval_rollouts = num_eval_rollouts
         self.device = device
 
-    def mp_rollouts(self, model: TrajectoryModel, **kwargs) -> List[AttrDict]:
+    def mp_rollouts(
+        self,
+        model: TrajectoryModel,
+        goal_states: Optional[torch.Tensor] = None,
+        goal_img_feats: Optional[Dict[str, torch.Tensor]] = None,
+        **kwargs,
+    ) -> List[AttrDict]:
+
         rollout_kwargs = general_utils.AttrDict(
             model=model,
             **kwargs,
@@ -90,13 +97,26 @@ class Rollout:
             p.join()
         else:
             for i in range(self.num_eval_rollouts):
-                eval_rollouts.append(self.run_single_rollout(**rollout_kwargs))
+                if goal_states:
+                    eval_rollouts.append(
+                        self.run_single_rollout(
+                            goal_states=goal_states[i : i + 1],
+                            goal_img_feats={
+                                k: goal_img_feats[k][i : i + 1] for k in goal_img_feats
+                            },
+                            **rollout_kwargs,
+                        )
+                    )
+                else:
+                    eval_rollouts.append(self.run_single_rollout(**rollout_kwargs))
 
         return eval_rollouts
 
     def run_single_rollout(
         self,
         model: TrajectoryModel,
+        goal_states: Optional[torch.Tensor] = None,
+        goal_img_feats: Optional[torch.Tensor] = None,
         **kwargs,
     ) -> AttrDict:
         """
@@ -107,10 +127,10 @@ class Rollout:
         For visual observations, the environment wrapper will handle featurizing the image
         and concatenating it with the state information.
         """
-
         start = time.time()
         episode_length = 0
         traj_success = False
+        self.recorder.reset()
 
         with torch.no_grad():
             # ============= PROCESS FIRST OBS =============
@@ -149,6 +169,8 @@ class Rollout:
                     states=states,
                     actions=actions,
                     timesteps=timesteps,
+                    goal_states=goal_states,
+                    goal_img_feats=goal_img_feats,
                 )
 
                 actions[-1] = action
