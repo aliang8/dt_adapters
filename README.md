@@ -6,13 +6,13 @@ Using decision transformers as the backbone for pretraining offline a behavior p
 
 Setup conda env:
 ```
-conda create -n dt_adapters python=3.7.9
+conda create -prefix ./dt_adapters python=3.8
 ```
 
-Clone this repo. This project has Metaworld as a submodule with additional envs.
+Clone this repo. 
 ```
-git clone --recursive https://github.com/aliang8/dt_adapters/tree/dev_ant/dt_adapters
-git checkout dev_ant 
+git clone --recursive https://github.com/aliang8/dt_adapters/tree/simplified/dt_adapters
+git checkout simplified
 git submodule update --init --recursive
 git pull --recurse-submodules
 ```
@@ -24,93 +24,28 @@ pip install -r requirements.txt
 
 Some exports needed for when running mujoco_py
 ```
-export ROOT_DIR=/home/anthony/dt_adapters
-export DATA_DIR=/home/anthony/dt_adapters/data
-export LOG_DIR=/home/anthony/dt_adapters/outputs
-mkdir -p ${LOG_DIR}/slurm_outputs
 export WANDB_API_KEY=YOUR_WANDB_KEY
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/anthony/.mujoco/mujoco210/bin
 ``` 
 
-Extra setup: installing robosuite, robomimic, etc
-
 ## Data collection
 ```
-# Train RL policy with custom implementation (doesn't work)
-CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 pytorch_sac/train.py env=reach-wall-v2-goal-observable log_to_wandb=false
-
-# Train SAC policies with garage (works well for single task no randomization)
-CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 -m garage.examples.torch.sac_metaworld --env_name=assembly-v2-goal-observable --seed=0 --gpu=0
-
-# Eval SAC policies trained with garage
-CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 pytorch_sac/eval_garage.py demos_per_env=10 debug=true model=single_task_sac log_to_wandb=true
-
 # Collect demos using scripted policies
-# TODO: add argparsing here
-CUDA_VISIBLE_DEVICES=1 DISPLAY=:1 python3 dt_adapters/collect_scripted_policy_demos.py \
-    --config-name=data_collection
+CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 dt_adapters/data/collect_scripted_policy_demos.py \
+    --task_name pick-place-v2 \
+    --data_dir /data/anthony/dt_adapters/data \
+    --num_demos 10
 ```
 
 ## Pretraining DT model 
 ```
 # Training
-CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py \
-    --config-name=train \
-    general.batch_size=32 \
-    data.data_file=trajectories_block_only_no_images_10.hdf5 \
+CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 dt_adapters/trainer.py \
+    --config-name=base \
+    general.eval_every=10 \
     general.exp_name=test \
+    general.num_eval_rollouts=2 \
     general.log_to_wandb=false
-
-# Zero-shot inference
-CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 zero_shot_dt_eval.py \
-    --config-name=eval \
-    num_processes=0 \
-    log_to_wandb=false
-```
-
-## Finetuning on adapters
-```
-# Offline fine-tuning 
-CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py \
-    --config-name=offline_finetune \
-    model_ckpt_dir=/model/checkpoint/dir \
-    env_name=pick-place-wall-v2
-
-# Online training 
-CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 train_mw.py \
-    --config-name=online_finetune \
-    model_ckpt_dir=/model/checkpoint/dir \
-    env_name=pick-place-wall-v2
-```
-
-## Running grid search experiments
-```
-# running on the cluster
-python3 slurm_jobber.py \
-    --num_processes_per_gpu=1 \
-    --run_scripts=1 \
-    --mode=online \
-    --grid_files=experiments/exp_obj_randomization.yaml \
-    --node=ron \
-    --lower_priority=1
-
-python3 slurm_jobber.py \
-    --num_processes_per_gpu=3 \
-    --run_scripts=0 \
-    --mode=online \
-    --grid_files=experiments/exp_adapter_vs_no_adapter.yaml \
-    --run_amber
-```
-
-## Generating data for RLBench
-```
-First follow the steps at https://github.com/stepjam/RLBench to install RLBench and the simulation environment PyRep
-DISPLAY=:0.1 python3 dt_adapters/data/dataset_generator.py \
-    --save_path=/data/anthony/dt_adapters/data/rlbench_data/mt15_v1_50 \
-    --tasks=[] \
-    --processes=20 \
-    --episodes_per_task=50 \
-    --variations=2
 ```
 
 ## Notes

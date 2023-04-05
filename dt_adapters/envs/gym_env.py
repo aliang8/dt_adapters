@@ -74,6 +74,6 @@ class GymEnv(object):
             self.env.unwrapped.mujoco_render_frames = True
             self.env.unwrapped.mj_render()
         except:
-            self.env.sim.render(
+            return self.env.sim.render(
                 height=image_dim, width=image_dim, camera_name=camera_name
             )
