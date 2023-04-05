@@ -16,6 +16,11 @@ dt_adapters/slurm_output/*
 dt_adapters/slurm_files/*
 outputs/*
 *.ipynb
-metaworld/
 *.csv
 *.egg-info/
+slurm_files/*
+old_outputs/*
+artifacts/*
+dt_adapters/data/outputs
+outputs
+venv
