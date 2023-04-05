@@ -1,3 +1,0 @@
-model_cls: mlp_policy
-
-num_prediction_head_layers: 4                   # number of MLP layers for the prediction head

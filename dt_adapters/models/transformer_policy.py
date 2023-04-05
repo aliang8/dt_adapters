@@ -9,9 +9,7 @@ import einops
 
 from dt_adapters.models.model import TrajectoryModel
 from dt_adapters.models.trajectory_gpt2 import TrajectoryGPT2
-from dt_adapters.models.state_embedding_net import StateEmbeddingNet
-from dt_adapters.mw_constants import OBJECTS
-import dt_adapters.general_utils as general_utils
+import dt_adapters.utils as utils
 
 from collections import OrderedDict
 
@@ -34,9 +32,6 @@ class TransformerPolicy(TrajectoryModel):
         max_episode_length: int,
         hidden_size: int,
         action_tanh: bool,
-        freeze_bottom_n_layers: int = 0,
-        goal_conditional: str = None,
-        state_encoder_cfg: Optional[DictConfig] = None,
         gpt2_cfg: Optional[DictConfig] = None,
         device: str = "cpu",
         **kwargs,
@@ -46,18 +41,6 @@ class TransformerPolicy(TrajectoryModel):
             act_dim,
             max_length=max_length,
         )
-
-        # concatenate proprio with the view embeddings
-
-        self.effective_input_dim = (
-            state_encoder_cfg.proprio
-            + len(state_encoder_cfg.image_keys)
-            * img_feat_dim[state_encoder_cfg.vision_backbone]
-        )
-        self.goal_conditional = goal_conditional
-
-        if goal_conditional == "concat":
-            self.effective_input_dim *= 2
 
         self.hidden_size = hidden_size
         gpt_config = transformers.GPT2Config(
@@ -70,7 +53,7 @@ class TransformerPolicy(TrajectoryModel):
         self.transformer = TrajectoryGPT2(gpt_config)
 
         # state embedding
-        self.embed_state = torch.nn.Linear(self.effective_input_dim, self.hidden_size)
+        self.embed_state = torch.nn.Linear(self.state_dim, self.hidden_size)
         self.embed_timestep = nn.Embedding(max_episode_length, self.hidden_size)
         self.embed_action = torch.nn.Linear(self.act_dim, self.hidden_size)
 
@@ -90,66 +73,29 @@ class TransformerPolicy(TrajectoryModel):
         states: torch.Tensor,
         actions: torch.Tensor,
         timesteps: torch.Tensor,
-        goal_states: Optional[torch.Tensor] = None,
-        img_feats: Union[torch.Tensor] = None,
-        goal_img_feats: Dict[str, torch.Tensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
         **kwargs,
-    ) -> general_utils.AttrDict:
+    ) -> utils.AttrDict:
         """
         Run a forward pass given observation representations and (optionally) goals.
         Arguments:
             states: Tensor[B, T, state_dim], states
             actions: Tensor[B, T, act_dim], actions
             timesteps: Tensor[B, T], timesteps
-            goal_states: Tensor[B, T_goal, state_dim] goal states
-            img_feats: Dict[str, Tensor[B, T, obs_dim]] dictionary of image observation features
-            goal_img_feats: Dict[str, Tensor[B, T_goal, obs_dim]]
             attention_mask: Tensor[B, T]
             B: batch size, T: sequence length, E: observation embedding size, G: goal size.
         Returns:
             A dictionary of outputs:
                 actions: Tensor[B, T, act_dim]
-                adapter_attentions
         """
-        B, T = states.shape[0], states.shape[1]
+        import ipdb
 
-        if goal_states:
-            goal_seq_len = goal_states.shape[1]
+        ipdb.set_trace()
+        B, T = states.shape[0], states.shape[1]
 
         if attention_mask is None:
             # attention mask for GPT: 1 if can be attended to, 0 if not
             attention_mask = torch.ones((B, T), dtype=torch.long).to(self.device)
-
-        if img_feats is not None:
-            # concatenate the image feat with the state feat
-            # make sure the image ones come first
-            img_feat = torch.cat(list(img_feats.values()), dim=-1)
-            states = torch.cat([img_feat, states], dim=-1)
-
-        if self.goal_conditional:
-            # [B, T_goal, obs_dim + state_dim]
-            goal_img_feats = torch.cat(list(goal_img_feats.values()), dim=-1)
-            goal_states = torch.cat([goal_img_feats, goal_states], dim=-1)
-
-            if self.goal_conditional == "prepend":
-                # [B, T_goal + T, obs_dim + state_dim]
-                states = torch.cat([goal_states, states], dim=1)
-                import ipdb
-
-                ipdb.set_trace()
-                pad = torch.zeros((B, goal_seq_len, actions.shape[-1])).to(self.device)
-                actions = torch.cat([pad, actions], dim=1)
-
-                pad = timesteps[:, 0] - 1
-                timesteps = torch.cat([pad, timesteps], dim=1)
-
-            elif self.goal_conditional == "concat":
-                # repeat the goal_information T times
-                goal_states = einops.repeat(
-                    goal_states, "B T D -> B (T repeat) D", repeat=T
-                )
-                states = torch.cat([goal_states, states], dim=2)
 
         states = states.float()
         actions = actions.float()
@@ -187,11 +133,6 @@ class TransformerPolicy(TrajectoryModel):
             output_adapter_fusion_attentions=True,
         )
 
-        if hasattr(transformer_outputs, "adapter_fusion_attentions"):
-            adapter_fusion_attentions = transformer_outputs.adapter_fusion_attentions
-        else:
-            adapter_fusion_attentions = None
-
         # [B, 2*T, D]
         x = transformer_outputs["last_hidden_state"]
 
@@ -201,9 +142,8 @@ class TransformerPolicy(TrajectoryModel):
         state_reps = x[:, 0]
         action_preds = self.predict_action(state_reps)
 
-        out = general_utils.AttrDict(
+        out = utils.AttrDict(
             action_preds=action_preds,
-            adapter_fusion_attentions=adapter_fusion_attentions,
         )
         return out
 
@@ -266,28 +206,3 @@ class TransformerPolicy(TrajectoryModel):
 
         # [B, T, D_A]
         return model_out["action_preds"][0, -1]
-
-    def freeze_backbone(self):
-        # freeze everything
-        for module in [
-            self.embed_state,
-            self.embed_action,
-            self.embed_timestep,
-            self.embed_ln,
-            self.predict_action,
-            self.transformer,
-        ]:
-            for param in module.parameters():
-                param.requires_grad = False
-
-        if self.freeze_bottom_n_layers > 0:
-            # freeze the bottom n layers and also freeze the input embedding layers
-            # train all other layers but the one closest to the input
-            # also train the action prediction head
-            for param in self.transformer.transformer.h[
-                self.freeze_bottom_n_layers :
-            ].parameters():
-                param.requires_grad = True
-
-            for param in self.embed_action.parameters():
-                param.requires_grad = True

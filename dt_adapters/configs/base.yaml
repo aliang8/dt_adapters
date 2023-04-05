@@ -5,8 +5,6 @@ defaults:
     - transformer
   - data: 
     - base 
-    - mw_blocks_only
   - general: base
 
-general:
-  stage: pretraining
+# add modifications to the config here
