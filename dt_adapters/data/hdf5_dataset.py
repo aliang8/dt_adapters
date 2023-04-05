@@ -37,8 +37,9 @@ class HDF5TrajectoryDataset(Dataset, abc.ABC):
         min_goal_sep: int = 0,
         only_sample_tail: bool = False,
         image_keys: List[str] = [],
-        proprio: int = -1,
+        proprio: int = 0,
         stage: str = "pretraining",
+        eval_task: str = "",
         **kwargs,
     ):
         self.context_length = context_length
@@ -54,6 +55,7 @@ class HDF5TrajectoryDataset(Dataset, abc.ABC):
         self.image_keys = image_keys
         self.proprio = proprio
         self.stage = stage
+        self.eval_task = eval_task
 
         self.all_trajectories = self.load_from_file()
 
@@ -77,6 +79,8 @@ class HDF5TrajectoryDataset(Dataset, abc.ABC):
         with h5py.File(data_file, "r") as f:
             for task in list(f.keys()):
                 for i, (_, demo) in enumerate(f[task].items()):
+                    if self.eval_task and task != self.eval_task:
+                        continue
 
                     # limit number of demos
                     if self.num_demos_per_task != -1 and i >= self.num_demos_per_task:
@@ -96,7 +100,14 @@ class HDF5TrajectoryDataset(Dataset, abc.ABC):
                         else:
                             print(f"{k} not available in dataset")
 
+                    # remove the last state (added the last during rollout collection)
+                    trajectory["states"] = trajectory["states"][:-1]
+                    assert (
+                        trajectory["states"].shape[0] == trajectory["actions"].shape[0]
+                    )
+
                     trajectories.append(trajectory)
+
         return trajectories
 
     def __len__(self):
@@ -129,6 +140,7 @@ class HDF5TrajectoryDataset(Dataset, abc.ABC):
         Returns a segment of demonstration based on context length
         """
         traj = self.all_trajectories[idx]
+
         total_seq_len = traj["states"].shape[0]
         start = np.random.randint(0, total_seq_len - 1)
         end = start + self.context_length
@@ -209,26 +221,28 @@ if __name__ == "__main__":
         context_length=5,
         max_episode_length=500,
         data_dir="/data/anthony/dt_adapters/data/metaworld_data",
-        data_file="trajectories_25.hdf5",
+        data_file="trajectories_resnet50_25.hdf5",
         goal_conditional="prepend",
         goal_seq_len=1,
         min_goal_sep=20,
-        only_sample_tail=False,
+        proprio=4,
+        only_sample_tail=True,
         image_keys=["corner", "corner2"],
+        eval_task="button-press-v2",
     )
 
-    # for i in range(10):
-    #     print(dataset[i].keys())
-    #     for k in dataset[i]:
-    #         if not isinstance(dataset[i][k], dict):
-    #             print(k, dataset[i][k].shape, type(dataset[i][k]))
+    for i in range(10):
+        print(dataset[i].keys())
+        for k in dataset[i]:
+            if not isinstance(dataset[i][k], dict):
+                print(k, dataset[i][k].shape, type(dataset[i][k]))
 
-    loader = DataLoader(
-        dataset=dataset,
-        batch_size=2,
-        num_workers=4,
-        drop_last=False,
-    )
+    # loader = DataLoader(
+    #     dataset=dataset,
+    #     batch_size=2,
+    #     num_workers=4,
+    #     drop_last=False,
+    # )
 
     for batch in loader:
         print(batch.keys())

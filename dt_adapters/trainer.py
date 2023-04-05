@@ -155,6 +155,8 @@ class Trainer(object):
         )
 
     def eval(self, epoch):
+        print()
+        print("*" * 50)
         print("running eval")
         start = time.time()
 
@@ -165,12 +167,43 @@ class Trainer(object):
         ) and self.config.log_eval_videos
 
         rollout = hydra.utils.instantiate(self.config.rollouts, _recursive_=False)
-        eval_rollouts = rollout.mp_rollouts(self.model)
+        num_eval_rollouts = self.config.rollouts.num_eval_rollouts
+
+        # for goal_conditioning we need to sample some goals from the dataset
+        if self.config.data.goal_conditional:
+            goal_states = [
+                self.dataset[i]["goal_states"] for i in range(num_eval_rollouts)
+            ]
+            goal_states = torch.from_numpy(np.concatenate(goal_states)).to(self.device)
+
+            goal_img_feats = dict()
+            for k in self.config.data.image_keys:
+                goal_img_feats[k] = [
+                    self.dataset[i]["goal_img_feats"][k]
+                    for i in range(num_eval_rollouts)
+                ]
+                goal_img_feats[k] = torch.from_numpy(
+                    np.concatenate(goal_img_feats[k])
+                ).to(self.device)
+        else:
+            goal_states = None
+            goal_img_feats = None
+
+        eval_rollouts = rollout.mp_rollouts(self.model, goal_states, goal_img_feats)
 
         # compute metrics and log
         metrics = eval_utils.compute_eval_metrics(eval_rollouts)
         metrics["epoch"] = epoch
         metrics["total_training_iters"] = self.total_training_iters
+
+        print(
+            f"task: {self.config.data.eval_task}, epoch {epoch}/{self.config.num_epochs} eval out of {num_eval_rollouts} episodes"
+        )
+        print(
+            f"collected {len(eval_rollouts)} rollouts in {time.time() - start} seconds"
+        )
+        pprint(metrics)
+        print("*" * 50)
 
         if self.config.log_to_wandb:
             wandb.log({f"eval/{k}": v for k, v in metrics.items()})
@@ -179,15 +212,6 @@ class Trainer(object):
                 videos = [traj["frames"] for traj in eval_rollouts]
                 self.save_videos(videos, key="main")
 
-        print("=" * 50)
-        print(
-            f"task: {self.config.data.eval_task}, epoch {epoch}/{self.config.num_epochs} eval out of {self.config.num_eval_rollouts} episodes"
-        )
-        print(
-            f"collected {len(eval_rollouts)} rollouts in {time.time() - start} seconds"
-        )
-        pprint(metrics)
-        print("=" * 50)
         return metrics
 
     def save_model(self, epoch, metrics):

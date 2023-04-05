@@ -4,9 +4,9 @@ max_episode_length: 500                           # max number of steps allowed 
 data_dir: /data/anthony/dt_adapters/data/         # root folder of dataset
 data_file: ???                                    # data hdf5 file name
 num_demos_per_task: -1
-goal_conditional: concat
+goal_conditional: 
 goal_seq_len: 1
-min_goal_sep: 20
+min_goal_sep: 5
 only_sample_tail: True
 image_keys: 
 vision_backbone: r3m

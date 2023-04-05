@@ -154,15 +154,24 @@ def _get_embedding(vision_backbone="resnet34", *args, **kwargs):
     return model, embedding_dim
 
 
+class ClipEnc(nn.Module):
+    def __init__(self, m):
+        super().__init__()
+        self.m = m
+
+    def forward(self, im):
+        e = self.m.encode_image(im)
+        return e
+
+
 class StateEmbeddingNet(nn.Module):
     """
     Embedding network to process state information
     """
 
-    def __init__(self, config, **kwargs):
+    def __init__(self, vision_backbone, **kwargs):
         super().__init__()
-        self.config = config
-        self.vision_backbone = self.config.vision_backbone
+        self.vision_backbone = vision_backbone
 
         if self.vision_backbone == "clip":
             import clip
@@ -172,7 +181,7 @@ class StateEmbeddingNet(nn.Module):
             embedding.eval()
             embedding_dim = 1024
             self.transforms = cliptransforms
-        elif (self.vision_backbone == "random") or (self.vision_backbone == ""):
+        elif "resnet" in self.vision_backbone:
             embedding, embedding_dim = _get_embedding(
                 vision_backbone=self.vision_backbone
             )
@@ -203,9 +212,6 @@ class StateEmbeddingNet(nn.Module):
 
     def forward(self, images, finetune=False):
         ### INPUT SHOULD BE [0,255]
-
-        embs = None
-
         inp = []
         for img in images:
             i = self.transforms(Image.fromarray(img.astype(np.uint8))).reshape(

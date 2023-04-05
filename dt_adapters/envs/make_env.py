@@ -10,8 +10,8 @@ def env_constructor(
     env_name: str,
     image_keys: List[str] = [],
     vision_backbone: str = None,
-    image_width: int = 128,
-    image_height: int = 128,
+    image_width: int = 256,
+    image_height: int = 256,
     proprio: int = 0,
     device: str = "cpu",
 ) -> GymEnv:

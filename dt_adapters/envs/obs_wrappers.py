@@ -93,7 +93,7 @@ class StateEmbedding(gym.ObservationWrapper):
             embedding.eval()
             embedding_dim = 1024
             self.transforms = cliptransforms
-        elif (vision_backbone == "random") or (vision_backbone == ""):
+        elif "resnet" in vision_backbone:
             embedding, embedding_dim = _get_embedding(vision_backbone=vision_backbone)
             self.transforms = T.Compose(
                 [

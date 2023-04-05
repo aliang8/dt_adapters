@@ -1,26 +1,10 @@
-multiprocessing: True 
-debug: False 
-# num_processes: 20
-log_to_wandb: False
-demos_per_env: 25
-# filter_envs_by_obj: 
+num_demos_per_env: 100
+domain: metaworld
 data_dir: /data/anthony/dt_adapters/data/metaworld_data/
 data_file: trajectories_all_with_images_${demos_per_env}.hdf5
-tasks: ???
-save_image: False
-
-data:
-  observation_mode: state
-  image_width: 256
-  image_height: 256
-  vision_backbone: r3m
-  proprio: 4
-  image_keys: 
-    - corner
-    - topview
-    - corner
-    - corner2
-    - corner3
-
-state_encoder:
-  vision_backbone: r3m
+image_height: 256
+image_width: 256
+max_episode_length: 500
+tasks: box-close-v2
+vision_backbone: r3m
+image_keys: ["corner", "corner2", "topview"]

@@ -102,6 +102,9 @@ class VideoRecorder:
         """Returns if the video recorder is functional, is enabled and not broken."""
         return self.enabled and not self.broken
 
+    def reset(self):
+        self.recorded_frames = []
+
     def capture_frame(self):
         """Render the given `env` and add the resulting frame to the video."""
         frame = self.env.env.sim.render(height=256, width=256, camera_name="corner")

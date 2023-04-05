@@ -29,8 +29,8 @@ save_best_model: True                               # save models with the highe
 log_eval_videos: True                               # should we videos of eval rollouts
 log_eval_videos_every: 10                           # number of epochs between every video save
 fps: 20           
-image_height: 128                                   # resizing videos to fixed dimension for wandb logging
-image_width: 128
+image_height: 256                                   # resizing videos to fixed dimension for wandb logging
+image_width: 256
 
 # online_finetuning
 online_training: False                              # for online finetune  
