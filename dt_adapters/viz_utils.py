@@ -63,7 +63,7 @@ def create_video_grid(videos, max_columns=5):
     return videos
 
 
-def save_videos(self, videos, task_name="", step=0, fps=10):
+def save_videos_to_wandb(self, videos, task_name="", step=0, fps=10):
     # create grid and log to wandb
     video_array = create_video_grid(videos)
     wandb.log(

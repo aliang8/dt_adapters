@@ -1,3 +1,4 @@
+from dt_adapters.envs.gym_env import GymEnv
 from metaworld.envs.mujoco.env_dict import ALL_V2_ENVIRONMENTS
 from collections import namedtuple
 from typing import Optional, Tuple, Dict, Union, List
@@ -19,5 +20,8 @@ def env_constructor(
         env._partially_observable = False
     else:
         print(f"{domain} not supported")
+
+    # wrap the environment with a gym environment
+    env = GymEnv(env)
 
     return env

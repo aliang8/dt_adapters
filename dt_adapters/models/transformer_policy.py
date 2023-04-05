@@ -88,9 +88,6 @@ class TransformerPolicy(TrajectoryModel):
             A dictionary of outputs:
                 actions: Tensor[B, T, act_dim]
         """
-        import ipdb
-
-        ipdb.set_trace()
         B, T = states.shape[0], states.shape[1]
 
         if attention_mask is None:
@@ -152,8 +149,6 @@ class TransformerPolicy(TrajectoryModel):
         states: torch.Tensor,
         actions: torch.Tensor,
         timesteps: torch.Tensor,
-        goal_states: Optional[torch.Tensor] = None,
-        goal_img_feats: Optional[Dict[str, torch.Tensor]] = None,
         **kwargs,
     ) -> torch.Tensor:
         """
@@ -186,23 +181,15 @@ class TransformerPolicy(TrajectoryModel):
                 # pad all the values until the have the same number of steps
                 pad_length = self.max_length - tensor.shape[1]
                 pad_shape = tensor.shape[2:]
+                pad_vector = torch.zeros(1, pad_length, *pad_shape).to(self.device)
 
+                # perform left padding because GPT-2 is a left-to-right model
                 model_input[key] = torch.cat(
-                    [torch.zeros(1, pad_length, *pad_shape).to(self.device), tensor],
+                    [pad_vector, tensor],
                     dim=1,
-                )
-
-        if goal_states is not None:
-            model_input["goal_states"] = einops.rearrange(goal_states, "T D -> 1 T D")
-
-        if goal_img_feats is not None:
-            model_input["goal_img_feats"] = dict()
-            for k in goal_img_feats:
-                model_input["goal_img_feats"][k] = einops.rearrange(
-                    goal_img_feats[k], "T D -> 1 T D"
                 )
 
         model_out = self.forward(**model_input, **kwargs)
 
-        # [B, T, D_A]
+        # [B, T, action_dim]
         return model_out["action_preds"][0, -1]

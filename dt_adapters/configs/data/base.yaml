@@ -1,5 +1,9 @@
 _target_: dt_adapters.data.hdf5_dataset.HDF5TrajectoryDataset
-context_len: 5                                    # number of timesteps the DT model can attend to 
+context_length: 5                                    # number of timesteps the DT model can attend to 
 max_episode_length: 500                           # max number of steps allowed in env
 data_dir: /data/anthony/dt_adapters/data/         # root folder of dataset
-data_file: ???                                    # data hdf5 file name
+num_demos_per_task: 10
+tasks: 
+ - pick-place-v2
+camera_names: 
+ - corner
