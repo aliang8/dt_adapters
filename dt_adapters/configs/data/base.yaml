@@ -3,11 +3,3 @@ context_len: 5                                    # number of timesteps the DT m
 max_episode_length: 500                           # max number of steps allowed in env
 data_dir: /data/anthony/dt_adapters/data/         # root folder of dataset
 data_file: ???                                    # data hdf5 file name
-num_demos_per_task: -1
-goal_conditional: 
-goal_seq_len: 1
-min_goal_sep: 5
-only_sample_tail: True
-image_keys: 
-vision_backbone: r3m
-image_width: 

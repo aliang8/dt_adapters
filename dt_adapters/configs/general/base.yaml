@@ -9,61 +9,25 @@ skip_first_eval: False                              # skip first evalution step
 num_epochs: 100                                     # number of training epochs
 batch_size: 128                                   
 
+# optimizer
 optimizer: adamw
 use_scheduler: False
 lr: 1e-4                                            
 weight_decay: 1e-4
-alpha_lr: 1e-4                                      # learning rate for auto-tuning alpha
-alpha_weight_decay: 1e-4                
-warmup_steps: 10000                                 # warmup steps for scheduler
-num_data_workers: 1                                 # for data loading
 
 # logging
 project_name: dt-adapters
 exp_name: test                                      # exp name, used for folder path and wandb group name
 log_to_wandb: False                                 # should we log the metrics to wandb
 log_outputs: False                                  # should we create a new folder and store exp output
-save_best_model: True                               # save models with the highest success rates
 
 # video configs
 log_eval_videos: True                               # should we videos of eval rollouts
 log_eval_videos_every: 10                           # number of epochs between every video save
 fps: 20           
-image_height: 256                                   # resizing videos to fixed dimension for wandb logging
-image_width: 256
 
-# online_finetuning
-online_training: False                              # for online finetune  
-num_online_rollouts: 1                              # number of online rollouts per epoch
-train_on_offline_data: True                         # should we continue training on offline data during online fine-tuning
-num_warmup_rollouts: 10                             # collect some initial trajectories to populate replay buffer
-target_return: 500                                  # conditioning RTG for inference
-
+# resume 
 load_from_ckpt: False                               # load pretrained model weights 
-freeze_backbone: False                              # freeze part of the pretrained model weights 
-
 model_ckpt_dir:                                     # where to look for model checkpoint
-pretrained_mdl_ckpt_dir:                            # pretrained model checkpoint dir
 resume_experiment: False                            # continue experiment
-mode: train
-
-early_stopping: False                               # terminate training early 
-early_stopping_metric: success_rate                 # which metric to stop early on
-patience: 5                                         # if patience is reached, end training early
 device: cuda
-
-rollouts: 
-  _target_: dt_adapters.rollout.Rollout
-  domain: ${data.env_name}
-  env_name: ${data.eval_task}
-  num_eval_rollouts: 10                               # number of rollouts per evaluation step
-  num_processes: 0                                    # number of processes for collecting eval rollouts
-
-  image_keys: ${data.image_keys}
-  vision_backbone: ${data.vision_backbone}
-  image_width: ${image_width}
-  image_height: ${image_height}
-  proprio: ${data.proprio}
-  max_episode_length: ${data.max_episode_length}
-  log_eval_videos: ${log_eval_videos}
-  device: ${device}
