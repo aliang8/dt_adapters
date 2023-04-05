@@ -89,9 +89,7 @@ def rollout(
     states.append(last_obs)
 
     frames = {
-        f"{camera_name}": [
-            env.sim.render(height=image_dim, width=image_dim, camera_name=camera_name)
-        ]
+        f"{camera_name}": [env.render(image_dim=image_dim, camera_name=camera_name)]
         for camera_name in camera_names
     }
 
@@ -122,9 +120,7 @@ def rollout(
         last_obs = obs
 
         last_frames = {
-            f"{camera_name}": env.sim.render(
-                height=image_dim, width=image_dim, camera_name=camera_name
-            )
+            f"{camera_name}": env.render(image_dim=image_dim, camera_name=camera_name)
             for camera_name in camera_names
         }
 
@@ -193,7 +189,7 @@ def save_trajectories(args, task_name, trajectories):
 def main(args):
     if not args.task_name:
         # collect trajectories for every task
-        for task_name, policy, _, _ in ENVS_AND_SCRIPTED_POLICIES:
+        for task_name, policy, action_noise_pct, _ in ENVS_AND_SCRIPTED_POLICIES:
             collect_trajectories(args, task_name, policy)
     else:
         policy = [

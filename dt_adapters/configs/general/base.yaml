@@ -4,6 +4,7 @@
 seed: 1                                             # random seed
 save_every: 10                                      # epochs between saving model checkpoints
 eval_every: 0                                       # epochs between evaluating policy
+num_eval_rollouts: 10                               # number of rollouts to evaluate policy
 num_steps_per_epoch: 200                            # number of gradient updates per online rollout
 skip_first_eval: False                              # skip first evalution step
 num_epochs: 100                                     # number of training epochs
@@ -14,9 +15,13 @@ optimizer: adamw
 use_scheduler: False
 lr: 1e-4                                            
 weight_decay: 1e-4
+warmup_steps: 10000
+num_data_workers: 4                                 # number of workers for dataloader
+use_lr_scheduler: False                             # use learning rate scheduler
 
 # logging
 project_name: dt-adapters
+log_dir: /data/anthony/dt_adapters/results/         # root folder for experiment results
 exp_name: test                                      # exp name, used for folder path and wandb group name
 log_to_wandb: False                                 # should we log the metrics to wandb
 log_outputs: False                                  # should we create a new folder and store exp output

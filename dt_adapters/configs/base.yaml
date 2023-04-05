@@ -1,7 +1,6 @@
 # base configuration for training 
 defaults:
   - model: 
-    - base
     - transformer
   - data: 
     - base 

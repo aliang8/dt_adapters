@@ -35,13 +35,16 @@ import seaborn as sns
 from functools import partial
 import matplotlib.pyplot as plt
 from PIL import Image
-
+from dt_adapters.rollout import run_single_rollout
 
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset, Sampler, RandomSampler
 
 from dt_adapters.models.transformer_policy import TransformerPolicy
 import dt_adapters.utils as utils
+import dt_adapters.eval_utils as eval_utils
+import dt_adapters.viz_utils as viz_utils
+from dt_adapters.envs.make_env import env_constructor
 
 
 class Trainer(object):
@@ -59,13 +62,27 @@ class Trainer(object):
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
         self.setup_model()
-        self.setup_optimizer()
+        self.optimizer, self.scheduler = utils.create_optimizer(
+            config.optimizer,
+            self.model,
+            self.config.lr,
+            self.config.weight_decay,
+            self.config.warmup_steps,
+        )
 
         # setup dataset
         self.setup_dataloader()
         self.loss_fn = torch.nn.MSELoss()
 
+        # setup env for eval
+        self.env = env_constructor(
+            domain="metaworld",
+            task_name=self.config.data.tasks[0],
+        )
+
     def setup_dataloader(self):
+        self.dataset = hydra.utils.instantiate(self.config.data, _recursive_=False)
+
         self.sampler = RandomSampler(self.dataset)
 
         self.data_loader = DataLoader(
@@ -89,8 +106,50 @@ class Trainer(object):
         print("final model params: ", utils.count_parameters(model))
         self.model.share_memory()
 
-    def eval(self):
-        pass
+    def eval(self, epoch):
+        print()
+        print("*" * 50)
+        print("running eval")
+        print("*" * 50)
+        start = time.time()
+
+        eval_rollouts = []
+
+        for _ in range(self.config.num_eval_rollouts):
+            rollout = run_single_rollout(
+                self.env,
+                "metaworld",
+                self.model,
+                self.device,
+                max_episode_length=self.config.data.max_episode_length,
+                save_frames=self.config.log_eval_videos,
+                camera_names=self.config.data.camera_names,
+            )
+            eval_rollouts.append(rollout)
+
+        # compute metrics and log
+        metrics = eval_utils.compute_eval_metrics(eval_rollouts)
+        print(
+            f"task: {self.config.data.tasks[0]}, epoch {epoch}/{self.config.num_epochs} eval metrics:"
+        )
+        print(
+            f"collected {len(eval_rollouts)} rollouts in {time.time() - start} seconds"
+        )
+        metrics["eval_rollout_time"] = time.time() - start
+        pprint(metrics)
+
+        if self.config.log_to_wandb:
+            # save metrics and rollout videos to wandb
+            wandb.log({f"eval/{k}": v for k, v in metrics.items()})
+
+            if self.config.log_eval_videos:
+                videos = [traj["images"] for traj in eval_rollouts]
+                viz_utils.save_videos_to_wandb(
+                    videos,
+                    task_name=self.config.data.tasks[0],
+                    step=epoch,
+                    fps=self.config.fps,
+                )
 
     def train_single_epoch(self):
         # iterate over the entire dataset once
@@ -103,7 +162,7 @@ class Trainer(object):
             # put tensors on gpu
             batch = utils.to_device(batch, self.device)
 
-            action_target = torch.clone(batch["actions"])
+            action_target = torch.clone(batch["actions"]).float()
 
             # feed inputs to model to get action predictions
             model_out = self.model.forward(**batch)
@@ -134,7 +193,7 @@ class Trainer(object):
             }
 
             # update learning rate if we are using a scheduler
-            if self.scheduler is not None and self.use_lr_scheduler:
+            if self.scheduler is not None and self.config.use_lr_scheduler:
                 self.scheduler.step()
                 log_dict["train/lr"] = self.scheduler.get_last_lr()[0]
 
@@ -162,7 +221,7 @@ class Trainer(object):
 
             # save model
             if epoch % self.config.save_every == 0 and epoch != 0:
-                ckpt_file = os.path.join(self.ckpt_dir, f"ckpt_{epoch}.pth")
+                ckpt_file = os.path.join(self.ckpt_dir, "models", f"ckpt_{epoch}.pth")
                 metadata = {
                     "epoch": epoch,
                 }
@@ -179,7 +238,7 @@ class Trainer(object):
         self.save_model(epoch, self.eval_metrics)
 
 
-@hydra.main(config_path="configs", config_name="train")
+@hydra.main(config_path="configs", config_name="base")
 def main(config):
     OmegaConf.set_struct(config, False)
     config.update(config.general)

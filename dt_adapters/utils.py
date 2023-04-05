@@ -15,6 +15,10 @@ def set_all_seeds(seed):
     torch.manual_seed(seed)
 
 
+def to_numpy(tensor):
+    return tensor.detach().cpu().numpy()
+
+
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
@@ -29,6 +33,29 @@ def to_device(batch, device):
         else:
             batch[k] = batch[k].to(device)
     return batch
+
+
+def pad_to_length(array, final_length, pad_zeros=True):
+    """
+    Given an array of [N, D] pad with zeros until [T, D] where T is
+    the target size. Returns a 2D array
+    """
+
+    # add extra dimension
+    if len(array.shape) == 1:
+        array = array[:, np.newaxis]
+
+    shape = array.shape[1:]
+    pad_length = final_length - array.shape[0]
+
+    if pad_zeros:
+        pad = np.zeros((pad_length, *shape))
+    else:
+        pad = np.ones((pad_length, *shape)) * -10
+
+    # pad to context length
+    array = np.concatenate([pad, array], axis=0)
+    return array
 
 
 def save_model(ckpt_file, model, optimizer, scheduler=None, metadata=None):
