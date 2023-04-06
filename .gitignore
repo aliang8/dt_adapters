@@ -24,3 +24,4 @@ artifacts/*
 dt_adapters/data/outputs
 outputs
 venv
+results

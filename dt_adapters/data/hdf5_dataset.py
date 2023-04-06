@@ -6,7 +6,7 @@ import random
 import numpy as np
 import einops
 import collections
-from dt_adapters.utils import pad_to_length
+from dt_adapters.utils.utils import pad_to_length
 from typing import Union, Callable, Optional, Sequence, List, Any, Dict
 from torch.utils.data import Dataset, Sampler, TensorDataset, DataLoader
 
@@ -30,6 +30,7 @@ class HDF5TrajectoryDataset(Dataset, abc.ABC):
         num_demos_per_task: int = 10,
         tasks: List[str] = [],
         camera_names: List[str] = [],
+        **kwargs,
     ):
         self.context_length = context_length
         self.max_episode_length = max_episode_length

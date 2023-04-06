@@ -41,9 +41,10 @@ from torch.utils.data import DataLoader
 from torch.utils.data import Dataset, Sampler, RandomSampler
 
 from dt_adapters.models.transformer_policy import TransformerPolicy
-import dt_adapters.utils as utils
-import dt_adapters.eval_utils as eval_utils
-import dt_adapters.viz_utils as viz_utils
+import dt_adapters.utils.utils as utils
+import dt_adapters.utils.eval_utils as eval_utils
+import dt_adapters.utils.viz_utils as viz_utils
+import dt_adapters.utils.adapter_utils as adapter_utils
 from dt_adapters.envs.make_env import env_constructor
 
 
@@ -75,13 +76,31 @@ class Trainer(object):
         self.loss_fn = torch.nn.MSELoss()
 
         # setup env for eval
-        self.env = env_constructor(
-            domain="metaworld",
-            task_name=self.config.data.tasks[0],
-        )
+        if self.config.stage == "finetune" and self.config.eval_every > 0:
+            self.env = env_constructor(
+                domain="metaworld",
+                task_name=self.config.data.tasks[0],
+            )
 
     def setup_dataloader(self):
+        if self.config.stage == "pretraining":
+            self.config.data.tasks = list(
+                (
+                    set(self.config.data.all_tasks)
+                    - set(self.config.data.adapter_tasks)
+                    - set(self.config.data.fusion_tasks)
+                )
+            )
+            print("pretraining tasks: ", self.config.data.tasks)
+        else:
+            self.config.data.tasks = [self.config.data.eval_task]
+
         self.dataset = hydra.utils.instantiate(self.config.data, _recursive_=False)
+
+        print(
+            f"stage: {self.config.stage}, number of total trajectories in dataset: ",
+            len(self.dataset),
+        )
 
         self.sampler = RandomSampler(self.dataset)
 
@@ -98,6 +117,46 @@ class Trainer(object):
         # create model
         model = hydra.utils.instantiate(self.config.model, _recursive_=False)
         print("base model params: ", utils.count_parameters(model))
+
+        # =================================
+        # handle adapter stuff here
+        # =================================
+        adapter_library = adapter_utils.load_adapter_library(
+            self.config.model.adapter_library_file
+        )
+
+        # insert adapters
+        if self.config.model.use_single_adapter:
+            # create a new adapter for the task
+            adapter_name = self.config.model.adapter_task_name
+            adapter_utils.insert_new_adapter(
+                adapter_library,
+                model,
+                adapter_name,
+                self.config.model.adapter_config.adapter,
+            )
+
+        if self.config.model.use_adapter_fusion:
+            # create a fusion layer
+            adapter_utils.insert_new_fusion_layer(
+                adapter_library,
+                model,
+                adapter_name,
+                self.config.model.adapter_config.fusion,
+            )
+
+        if self.config.model.use_adapter_fusion or self.config.model.use_single_adapter:
+            print(model.transformer.adapter_summary())
+
+        # load from checkpoint for fine-tuning
+        if self.config.load_from_ckpt:
+            model, start_epoch = utils.load_model_from_ckpt(
+                model, self.config, self.config.model_ckpt_dir, strict=False
+            )
+
+            # continue training from a previous checkpoint
+            if self.config.resume_experiment:
+                self.start_epoch = start_epoch
 
         # put model on device
         self.model = model.to(self.device)
@@ -224,6 +283,7 @@ class Trainer(object):
                 ckpt_file = os.path.join(self.ckpt_dir, "models", f"ckpt_{epoch}.pth")
                 metadata = {
                     "epoch": epoch,
+                    "config": self.config,
                 }
                 utils.save_model(
                     ckpt_file, self.model, self.optimizer, self.scheduler, metadata

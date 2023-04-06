@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, Type, Union
 import os
 import sys
 import wandb
+import glob
 import shutil
 from pathlib import Path
 from omegaconf import OmegaConf
@@ -70,6 +71,80 @@ def save_model(ckpt_file, model, optimizer, scheduler=None, metadata=None):
 
     save_dict.update(metadata)
     torch.save(save_dict, ckpt_file)
+
+
+class bcolors:
+    HEADER = "\033[95m"
+    OKBLUE = "\033[94m"
+    OKCYAN = "\033[96m"
+    OKGREEN = "\033[92m"
+    WARNING = "\033[93m"
+    FAIL = "\033[91m"
+    ENDC = "\033[0m"
+    BOLD = "\033[1m"
+    UNDERLINE = "\033[4m"
+
+
+def find_diff_dict(d1, d2, path=""):
+    for k in d1:
+        if k == "general":
+            continue
+        if k in d2:
+            if type(d1[k]) is dict:
+                find_diff_dict(d1[k], d2[k], "%s -> %s" % (path, k) if path else k)
+
+            if d1[k] != d2[k] and type(d1[k]) is not dict and type(d2[k]) is not dict:
+                result = [
+                    "%s: " % path,
+                    f"{bcolors.FAIL} - {k} : {d1[k]}{bcolors.ENDC}",
+                    f"{bcolors.OKGREEN} + {k} : {d2[k]}{bcolors.ENDC}",
+                ]
+                print("\n".join(result))
+        else:
+            print("%s%s as key not in d2\n" % ("%s: " % path if path else "", k))
+
+
+def find_new_keys(d1, d2, path=""):
+    for k in d1:
+        if k == "general":
+            continue
+
+        if k not in d2:
+            print(f"{bcolors.OKBLUE} + {k}: {d1[k]} {bcolors.ENDC}")
+            continue
+
+        if type(d1[k]) is dict:
+            find_new_keys(d1[k], d2[k], path=f"{path} -> {k}" if path else k)
+
+        if k not in d2:
+            result = [
+                "%s: " % path,
+                f"{bcolors.OKBLUE} + {k} : {d1[k]}{bcolors.ENDC}",
+            ]
+            print("\n".join(result))
+
+
+def load_model_from_ckpt(model, cfg, model_ckpt_dir, strict=True):
+    # loading from previous checkpoint
+    ckpt_file = sorted(glob.glob(f"{model_ckpt_dir}/models/*"))[-1]
+    print(f"loading pretrained model from {ckpt_file}")
+
+    state_dict = torch.load(ckpt_file)
+    prev_cfg = state_dict["config"]
+    epoch = state_dict["epoch"]
+    del state_dict["config"]
+    del state_dict["epoch"]
+
+    # find differences between old cfg and new one
+    print("Differences between old config and new one:")
+    find_diff_dict(OmegaConf.to_container(prev_cfg), OmegaConf.to_container(cfg))
+
+    # find keys in new config not in the old config
+    print("New keys:")
+    find_new_keys(OmegaConf.to_container(cfg), OmegaConf.to_container(prev_cfg))
+
+    model.load_state_dict(state_dict["model"], strict=strict)
+    return model, epoch
 
 
 def create_optimizer(optim_cls, model, lr, weight_decay, warmup_steps):

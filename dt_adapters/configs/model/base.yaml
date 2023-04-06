@@ -1,0 +1,22 @@
+device: cuda 
+hidden_size: 768
+state_dim: ${data.state_dim}                              
+act_dim: ${data.act_dim}
+
+
+# adapter configuration
+use_single_adapter: False                                       # do we add an adapter during training
+use_adapter_fusion: False                                       # load existing adapters for fusion
+adapter_task_name: ${data.eval_task}                            # this should be the task name
+adapter_library_file: /data/anthony/dt_adapters/adapter_library.yaml 
+
+adapter_config:
+  adapter:                                    
+    config: pfeiffer+inv            
+    nonlinearity: none 
+    reduction_factor: none
+
+  fusion:
+    fusion_method: weighted-composition # bert-fusion
+    weights_initialization: uniform
+    unfreeze_task_adapter: False

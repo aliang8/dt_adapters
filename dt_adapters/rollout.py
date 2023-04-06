@@ -1,8 +1,8 @@
 import torch
 import numpy as np
-import dt_adapters.utils as utils
+import dt_adapters.utils.utils as utils
 from dt_adapters.models.transformer_policy import TrajectoryModel
-from dt_adapters.utils import AttrDict
+from dt_adapters.utils.utils import AttrDict
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Type, Union
 
 

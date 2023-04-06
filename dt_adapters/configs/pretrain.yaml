@@ -1,9 +1,13 @@
 # base configuration for training 
 defaults:
   - model: 
+    - base
     - transformer
   - data: 
     - base 
   - general: base
 
 # add modifications to the config here
+general:
+  eval_every: 0
+  stage: pretraining

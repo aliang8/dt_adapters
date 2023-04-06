@@ -30,22 +30,34 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/anthony/.mujoco/mujoco210/bin
 
 ## Data collection
 ```
-# Collect demos using scripted policies
+# Collect demos using scripted policies for all tasks 
+CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 dt_adapters/data/collect_scripted_policy_demos.py \
+    --data_dir /data/anthony/dt_adapters/data \
+    --num_demos 25
+
+# Collect demos using scripted policies for a specific task
 CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 dt_adapters/data/collect_scripted_policy_demos.py \
     --task_name pick-place-v2 \
     --data_dir /data/anthony/dt_adapters/data \
     --num_demos 10
 ```
 
-## Pretraining DT model 
+## Pretraining and fine-tuning transformer policy
 ```
-# Training
+# Pretraining
+# Note: don't do any eval during pretraining
 CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 dt_adapters/trainer.py \
-    --config-name=base \
-    general.eval_every=10 \
-    general.exp_name=test \
-    general.num_eval_rollouts=5 \
+    --config-name=pretrain \
+    general.eval_every=0 \
+    general.exp_name=pretraining \
     general.log_to_wandb=true
+
+# Fine-tuning adapter for new downstream task
+CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 dt_adapters/trainer.py \
+    --config-name=finetune \
+    data.tasks=[pick-place-v2] \
+    general.exp_name=finetune \
+    general.model_ckpt_dir=/data/anthony/dt_adapters/results/pretraining \
 ```
 
 ## Notes

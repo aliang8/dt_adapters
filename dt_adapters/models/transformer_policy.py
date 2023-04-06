@@ -9,7 +9,7 @@ import einops
 
 from dt_adapters.models.model import TrajectoryModel
 from dt_adapters.models.trajectory_gpt2 import TrajectoryGPT2
-import dt_adapters.utils as utils
+import dt_adapters.utils.utils as utils
 
 from collections import OrderedDict
 
@@ -19,8 +19,6 @@ from torch.distributions.transforms import TanhTransform
 
 from typing import Optional, Tuple, Dict, Union
 from omegaconf import DictConfig
-
-img_feat_dim = {"clip": 1024, "resnet50": 2048, "r3m": 2048}
 
 
 class TransformerPolicy(TrajectoryModel):
