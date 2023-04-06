@@ -10,7 +10,7 @@ def split(a, n):
 
 def create_video_grid(videos, max_columns=5):
     # wandb needs videos to be in BxCxHxW
-    height, width = videos[0].shape
+    n_frames, height, width, channel = videos[0].shape
 
     if len(videos) % max_columns != 0:
         # need to pad with some black videos
@@ -63,7 +63,7 @@ def create_video_grid(videos, max_columns=5):
     return videos
 
 
-def save_videos_to_wandb(self, videos, task_name="", step=0, fps=10):
+def save_videos_to_wandb(videos, task_name="", step=0, fps=10):
     # create grid and log to wandb
     video_array = create_video_grid(videos)
     wandb.log(

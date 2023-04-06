@@ -44,8 +44,8 @@ CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 dt_adapters/trainer.py \
     --config-name=base \
     general.eval_every=10 \
     general.exp_name=test \
-    general.num_eval_rollouts=2 \
-    general.log_to_wandb=false
+    general.num_eval_rollouts=5 \
+    general.log_to_wandb=true
 ```
 
 ## Notes
