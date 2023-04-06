@@ -143,7 +143,7 @@ class Trainer(object):
             wandb.log({f"eval/{k}": v for k, v in metrics.items()})
 
             if self.config.log_eval_videos:
-                videos = [traj["images"] for traj in eval_rollouts]
+                videos = [traj["images"]["corner"] for traj in eval_rollouts]
                 viz_utils.save_videos_to_wandb(
                     videos,
                     task_name=self.config.data.tasks[0],
