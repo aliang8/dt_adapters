@@ -52,12 +52,23 @@ CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 dt_adapters/trainer.py \
     general.exp_name=pretraining \
     general.log_to_wandb=true
 
+CUDA_VISIBLE_DEVICES=1 DISPLAY=:0 python3 dt_adapters/trainer.py \
+    --config-name=pretrain \
+    general.eval_every=0 \
+    general.exp_name=pretraining_40_tasks_scheduler_2 \
+    general.num_epochs=500 \
+    general.log_to_wandb=true \
+    general.use_lr_scheduler=true \
+    general.load_from_ckpt=True \
+    general.resume_experiment=True \
+    general.model_ckpt_dir=/data/anthony/dt_adapters/results/pretraining_40_tasks_2 \
+
 # Fine-tuning adapter for new downstream task
 CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 dt_adapters/trainer.py \
     --config-name=finetune \
-    data.tasks=[pick-place-v2] \
+    data.eval_task=pick-place-v2 \
     general.exp_name=finetune \
-    general.model_ckpt_dir=/data/anthony/dt_adapters/results/pretraining \
+    general.model_ckpt_dir=/data/anthony/dt_adapters/results/pretraining_40_tasks_3 \
 ```
 
 ## Notes

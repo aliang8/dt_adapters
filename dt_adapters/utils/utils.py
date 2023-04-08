@@ -188,7 +188,7 @@ def setup_logging(config):
 
     # check if this experiment already exists
     # create results folders
-    if os.path.exists(ckpt_dir) and not config.resume_experiment:
+    if os.path.exists(ckpt_dir) and not config.resume_experiment and not config.overwrite_folder:
         overwrite = input(f"{ckpt_dir} already exists, overwrite [y/n]")
 
         if overwrite == "y":

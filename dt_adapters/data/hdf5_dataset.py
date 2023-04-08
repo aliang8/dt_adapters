@@ -132,6 +132,9 @@ class HDF5TrajectoryDataset(Dataset, abc.ABC):
         # add mask
         subseq["attention_mask"] = np.ones((end - start))
         subseq["attention_mask"][:pad_length] = 0
+        
+        # normalize inputs
+        subseq["states"] = (subseq["states"] - self.state_mean) / self.state_std
         return subseq
 
 

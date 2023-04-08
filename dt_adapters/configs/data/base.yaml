@@ -9,6 +9,8 @@ camera_names:
 state_dim: 39
 act_dim: 4
 
+modality: state 
+
 eval_task: pick-place-v2
 
 all_tasks:

@@ -58,6 +58,7 @@ class Trainer(object):
 
         self.config = config
         self.start_epoch = 0
+        self.total_training_iters = 0
 
         self.ckpt_dir = utils.setup_logging(config)
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -79,7 +80,7 @@ class Trainer(object):
         if self.config.stage == "finetune" and self.config.eval_every > 0:
             self.env = env_constructor(
                 domain="metaworld",
-                task_name=self.config.data.tasks[0],
+                task_name=self.config.data.eval_task,
             )
 
     def setup_dataloader(self):
@@ -183,6 +184,8 @@ class Trainer(object):
                 max_episode_length=self.config.data.max_episode_length,
                 save_frames=self.config.log_eval_videos,
                 camera_names=self.config.data.camera_names,
+                state_mean=self.dataset.state_mean,
+                state_std=self.dataset.state_std,
             )
             eval_rollouts.append(rollout)
 
@@ -210,7 +213,7 @@ class Trainer(object):
                     fps=self.config.fps,
                 )
 
-    def train_single_epoch(self):
+    def train_single_iteration(self):
         # iterate over the entire dataset once
         # dataset should consists of (s,a) trajectories
         # the model should be able to predict the next action (a') given the current state
@@ -260,6 +263,17 @@ class Trainer(object):
             if self.config.log_to_wandb:
                 wandb.log(log_dict)
 
+    def save_model(self, epoch):
+        ckpt_file = os.path.join(self.ckpt_dir, "models", f"ckpt_{epoch}.pth")
+        metadata = {
+            "epoch": epoch,
+            "config": self.config,
+            "total_training_iters": self.total_training_iters,
+        }
+        utils.save_model(
+            ckpt_file, self.model, self.optimizer, self.scheduler, metadata
+        )
+
     def train(self):
         # main train loop
         # iterate over the dataset for a fixed number of epochs
@@ -280,22 +294,20 @@ class Trainer(object):
 
             # save model
             if epoch % self.config.save_every == 0 and epoch != 0:
-                ckpt_file = os.path.join(self.ckpt_dir, "models", f"ckpt_{epoch}.pth")
-                metadata = {
-                    "epoch": epoch,
-                    "config": self.config,
-                }
-                utils.save_model(
-                    ckpt_file, self.model, self.optimizer, self.scheduler, metadata
-                )
+                self.save_model(epoch)
 
             # iterate over dataset for a number of epochs
-            for _ in range(self.config.num_epochs):
-                self.train_single_epoch()
+            for _ in range(self.config.num_iterations_per_epoch):
+                self.train_single_iteration()
+                self.total_training_iters += 1
 
-        # save everything again at the end
-        self.eval(epoch)
-        self.save_model(epoch, self.eval_metrics)
+        # run one last evaluation
+        print("final evaluation...")
+        if self.config.stage == "finetune":
+            self.eval(epoch)
+
+        # save the model one last time
+        self.save_model(epoch)
 
 
 @hydra.main(config_path="configs", config_name="base")

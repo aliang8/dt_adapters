@@ -15,6 +15,8 @@ def run_single_rollout(
     save_frames: bool = False,
     image_dim: int = 64,
     camera_names: List[str] = [],
+    state_mean: Optional[np.ndarray] = None,
+    state_std: Optional[np.ndarray] = None,
     **kwargs,
 ) -> AttrDict:
     """
@@ -49,7 +51,7 @@ def run_single_rollout(
         rewards = torch.cat([rewards, torch.zeros(1, device=device)])
 
         action = model.get_action(
-            states=states,
+            states=(states - state_mean) / state_std,
             actions=actions,
             timesteps=timesteps,
         )

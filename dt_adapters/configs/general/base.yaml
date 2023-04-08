@@ -8,11 +8,11 @@ num_eval_rollouts: 10                               # number of rollouts to eval
 num_steps_per_epoch: 200                            # number of gradient updates per online rollout
 skip_first_eval: False                              # skip first evalution step
 num_epochs: 100                                     # number of training epochs
-batch_size: 128                                   
+batch_size: 256                                     # batch size for training                    
+num_iterations_per_epoch: 200                       # number of iterations per epoch               
 
 # optimizer
 optimizer: adamw
-use_scheduler: False
 lr: 1e-4                                            
 weight_decay: 1e-4
 warmup_steps: 10000
@@ -36,3 +36,4 @@ load_from_ckpt: False                               # load pretrained model weig
 model_ckpt_dir:                                     # where to look for model checkpoint
 resume_experiment: False                            # continue experiment
 device: cuda
+overwrite_folder: False                             # overwrite the experiment folder if it exists
