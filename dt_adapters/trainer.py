@@ -63,6 +63,10 @@ class Trainer(object):
         self.ckpt_dir = utils.setup_logging(config)
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
+        self.use_adapter = (
+            self.config.model.use_single_adapter or self.config.model.use_adapter_fusion
+        )
+
         self.setup_model()
         self.optimizer, self.scheduler = utils.create_optimizer(
             config.optimizer,
@@ -75,6 +79,9 @@ class Trainer(object):
         # setup dataset
         self.setup_dataloader()
         self.loss_fn = torch.nn.MSELoss()
+        self.best_eval_score = -np.inf
+        self.best_eval_epoch = 0
+        self.eval_metrics = None
 
         # setup env for eval
         if self.config.stage == "finetune" and self.config.eval_every > 0:
@@ -126,10 +133,11 @@ class Trainer(object):
             self.config.model.adapter_library_file
         )
 
+        adapter_name = self.config.model.adapter_task_name
+
         # insert adapters
         if self.config.model.use_single_adapter:
             # create a new adapter for the task
-            adapter_name = self.config.model.adapter_task_name
             adapter_utils.insert_new_adapter(
                 adapter_library,
                 model,
@@ -143,10 +151,11 @@ class Trainer(object):
                 adapter_library,
                 model,
                 adapter_name,
-                self.config.model.adapter_config.fusion,
+                self.config.model.adapter_config,
+                adapters_to_use=self.config.model.adapters_to_use,
             )
 
-        if self.config.model.use_adapter_fusion or self.config.model.use_single_adapter:
+        if self.use_adapter:
             print(model.transformer.adapter_summary())
 
         # load from checkpoint for fine-tuning
@@ -184,8 +193,8 @@ class Trainer(object):
                 max_episode_length=self.config.data.max_episode_length,
                 save_frames=self.config.log_eval_videos,
                 camera_names=self.config.data.camera_names,
-                state_mean=self.dataset.state_mean,
-                state_std=self.dataset.state_std,
+                state_mean=torch.Tensor(self.dataset.state_mean).to(self.device),
+                state_std=torch.Tensor(self.dataset.state_std).to(self.device),
             )
             eval_rollouts.append(rollout)
 
@@ -199,6 +208,11 @@ class Trainer(object):
         )
         metrics["eval_rollout_time"] = time.time() - start
         pprint(metrics)
+        self.eval_metrics = metrics
+        self.best_eval_score = max(self.best_eval_score, metrics["success_rate"])
+        if self.best_eval_score == metrics["success_rate"]:
+            self.best_eval_epoch = epoch
+        print("best eval score: ", self.best_eval_score)
 
         if self.config.log_to_wandb:
             # save metrics and rollout videos to wandb
@@ -264,20 +278,47 @@ class Trainer(object):
                 wandb.log(log_dict)
 
     def save_model(self, epoch):
-        ckpt_file = os.path.join(self.ckpt_dir, "models", f"ckpt_{epoch}.pth")
-        metadata = {
-            "epoch": epoch,
-            "config": self.config,
-            "total_training_iters": self.total_training_iters,
-        }
-        utils.save_model(
-            ckpt_file, self.model, self.optimizer, self.scheduler, metadata
-        )
+        if self.use_adapter:
+            ckpt_dir = os.path.join(self.ckpt_dir, "models", f"epoch_{epoch:04d}")
+            os.makedirs(ckpt_dir, exist_ok=True)
+
+            metadata = {
+                "epoch": epoch,
+                "total_training_iters": self.total_training_iters,
+                "best_eval_score": self.best_eval_score,
+                "best_eval_epoch": self.best_eval_epoch,
+                "ckpt_path": str(ckpt_dir),
+            }
+            # use HF util to save adapters
+            adapter_utils.save_adapters(
+                self.model,
+                ckpt_dir,
+                self.config.model.use_adapter_fusion,
+                self.config.model.adapter_task_name,
+                metadata,
+            )
+            # update the library of adapters
+            adapter_utils.update_adapter_library(
+                self.config.model.adapter_library_file,
+                self.config.model.adapter_task_name,
+                ckpt_dir,
+                metadata,
+            )
+        else:
+            ckpt_file = os.path.join(self.ckpt_dir, "models", f"ckpt_{epoch:04d}.pth")
+
+            metadata = {
+                "epoch": epoch,
+                "config": self.config,
+                "total_training_iters": self.total_training_iters,
+            }
+            utils.save_model(
+                ckpt_file, self.model, self.optimizer, self.scheduler, metadata
+            )
 
     def train(self):
         # main train loop
         # iterate over the dataset for a fixed number of epochs
-
         print(f"starting epoch: {self.start_epoch}")
 
         for epoch in tqdm(range(self.start_epoch, self.config.num_epochs)):

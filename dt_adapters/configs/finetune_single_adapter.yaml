@@ -1,0 +1,21 @@
+# base configuration for training 
+defaults:
+  - model: 
+    - base
+    - transformer
+  - data: 
+    - base 
+  - general: base
+
+# add modifications to the config here
+data:
+  eval_task: pick-place-v2
+
+model:
+  use_single_adapter: True
+
+general:
+  eval_every: 10
+  load_from_ckpt: True
+  model_ckpt_dir: /data/anthony/dt_adapters/results/pretraining
+  stage: finetune

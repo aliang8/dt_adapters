@@ -1,0 +1,70 @@
+basketball-v2:
+  best_eval_epoch: 30
+  best_eval_score: 1.0
+  ckpt_path: /data/anthony/dt_adapters/results/single_task_adapter_basketball-v2/models/epoch_0099
+  epoch: 99
+  name: basketball-v2
+  total_training_iters: 20000
+bin-picking-v2:
+  best_eval_epoch: 30
+  best_eval_score: 0.7
+  ckpt_path: /data/anthony/dt_adapters/results/single_task_adapter_bin-picking-v2/models/epoch_0099
+  epoch: 99
+  name: bin-picking-v2
+  total_training_iters: 20000
+coffee-push-v2:
+  best_eval_epoch: 60
+  best_eval_score: 0.9
+  ckpt_path: /data/anthony/dt_adapters/results/single_task_adapter_coffee-push-v2/models/epoch_0099
+  epoch: 99
+  name: coffee-push-v2
+  total_training_iters: 20000
+door-open-v2:
+  best_eval_epoch: 99
+  best_eval_score: 1.0
+  ckpt_path: /data/anthony/dt_adapters/results/single_task_adapter_door-open-v2/models/epoch_0099
+  epoch: 99
+  name: door-open-v2
+  total_training_iters: 20000
+faucet-open-v2:
+  best_eval_epoch: 99
+  best_eval_score: 1.0
+  ckpt_path: /data/anthony/dt_adapters/results/single_task_adapter_faucet-open-v2/models/epoch_0099
+  epoch: 99
+  name: faucet-open-v2
+  total_training_iters: 20000
+handle-press-v2:
+  best_eval_epoch: 99
+  best_eval_score: 1.0
+  ckpt_path: /data/anthony/dt_adapters/results/single_task_adapter_handle-press-v2/models/epoch_0099
+  epoch: 99
+  name: handle-press-v2
+  total_training_iters: 20000
+peg-insert-side-v2:
+  best_eval_epoch: 99
+  best_eval_score: 0.6
+  ckpt_path: /data/anthony/dt_adapters/results/single_task_adapter_peg-insert-side-v2/models/epoch_0099
+  epoch: 99
+  name: peg-insert-side-v2
+  total_training_iters: 20000
+pick-place-v2:
+  best_eval_epoch: 80
+  best_eval_score: 0.7
+  ckpt_path: /data/anthony/dt_adapters/results/single_task_adapter_pick-place-v2/models/epoch_0099
+  epoch: 99
+  name: pick-place-v2
+  total_training_iters: 20000
+reach-wall-v2:
+  best_eval_epoch: 50
+  best_eval_score: 0.4
+  ckpt_path: /data/anthony/dt_adapters/results/single_task_adapter_reach-wall-v2/models/epoch_0099
+  epoch: 99
+  name: reach-wall-v2
+  total_training_iters: 20000
+stick-pull-v2:
+  best_eval_epoch: 50
+  best_eval_score: 0.9
+  ckpt_path: /data/anthony/dt_adapters/results/single_task_adapter_stick-pull-v2/models/epoch_0099
+  epoch: 99
+  name: stick-pull-v2
+  total_training_iters: 20000

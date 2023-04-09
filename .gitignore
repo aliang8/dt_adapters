@@ -25,3 +25,5 @@ dt_adapters/data/outputs
 outputs
 venv
 results
+gpu-hog/*
+gpu-hog/

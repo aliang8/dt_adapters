@@ -63,12 +63,26 @@ CUDA_VISIBLE_DEVICES=1 DISPLAY=:0 python3 dt_adapters/trainer.py \
     general.resume_experiment=True \
     general.model_ckpt_dir=/data/anthony/dt_adapters/results/pretraining_40_tasks_2 \
 
-# Fine-tuning adapter for new downstream task
-CUDA_VISIBLE_DEVICES=0 DISPLAY=:0 python3 dt_adapters/trainer.py \
-    --config-name=finetune \
+# Fine-tuning single task adapter for new downstream task
+CUDA_VISIBLE_DEVICES=1 DISPLAY=:0 python3 dt_adapters/trainer.py \
+    --config-name=finetune_single_adapter \
     data.eval_task=pick-place-v2 \
-    general.exp_name=finetune \
-    general.model_ckpt_dir=/data/anthony/dt_adapters/results/pretraining_40_tasks_3 \
+    general.exp_name=test \
+    general.model_ckpt_dir=/data/anthony/dt_adapters/results/pretraining_40_tasks_scheduler_2 \
+
+# Fine-tuning fusion layer for new downstream task
+CUDA_VISIBLE_DEVICES=1 DISPLAY=:0 python3 dt_adapters/trainer.py \
+    --config-name=finetune_fusion \
+    data.eval_task=bin-picking-v2 \
+    general.exp_name=finetune_fusion \
+    general.model_ckpt_dir=/data/anthony/dt_adapters/results/pretraining_40_tasks_scheduler_2 \
+    model.adapters_to_use=[pick-place-v2]
+```
+
+```
+Run with gpu-hog for parallelizing multiple jobs
+
+python3 main.py --job_file fusion_run.sh --gpus 1,1,1,1,1
 ```
 
 ## Notes

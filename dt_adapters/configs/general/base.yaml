@@ -17,7 +17,7 @@ lr: 1e-4
 weight_decay: 1e-4
 warmup_steps: 10000
 num_data_workers: 4                                 # number of workers for dataloader
-use_lr_scheduler: False                             # use learning rate scheduler
+use_lr_scheduler: True                              # use learning rate scheduler
 
 # logging
 project_name: dt-adapters
