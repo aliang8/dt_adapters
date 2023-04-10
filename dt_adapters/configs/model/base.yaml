@@ -10,7 +10,6 @@ use_adapter_fusion: False                                       # load existing 
 adapter_task_name: ${data.eval_task}                            # this should be the task name
 adapter_library_file: /data/anthony/dt_adapters/adapter_library.yaml 
 adapters_to_use:                                                # list of adapters to use for fusion
-# add_new_adapter: True                                           # add a new adapter for fusion
 
 adapter_config:
   adapter:                                    
@@ -19,6 +18,6 @@ adapter_config:
     reduction_factor: none
 
   fusion:
-    fusion_method: weighted-composition # bert-fusion
+    fusion_method: bert-fusion
     weights_initialization: uniform
     unfreeze_task_adapter: False

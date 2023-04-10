@@ -6,6 +6,7 @@ from transformers.adapters.configuration import AdapterConfig
 import transformers.adapters.composition as ac
 from transformers.adapters.configuration import DynamicAdapterFusionConfig
 from transformers.adapters.layer import AdapterLayer
+from typing import Iterable, List, Optional, Tuple, Union
 
 
 def load_adapter_library(adapter_library_file):
@@ -105,6 +106,11 @@ def insert_new_fusion_layer(
     for pretrained_adapter_name in adapters_to_use:
         adapter_ckpt_path = adapter_library[pretrained_adapter_name]["ckpt_path"]
 
+        # make sure we are using the model with best checkpoint
+        base_path = os.path.dirname(adapter_ckpt_path)
+        best_epoch = adapter_library[pretrained_adapter_name]["best_eval_epoch"]
+        adapter_ckpt_path = os.path.join(base_path, f"epoch_{best_epoch:04d}")
+
         if not os.path.exists(adapter_ckpt_path):
             raise Exception(f"{adapter_ckpt_path} does not exist")
             exit()
@@ -158,12 +164,20 @@ def insert_new_fusion_layer(
     )
 
     # check the the fusion layer is trainable
-    assert (
-        model.transformer.transformer.h[0]
-        .output_adapters.adapter_fusion_layer[fusion_layer.name]
-        .query.weight.requires_grad
-        == True
-    )
+    if base_fusion_config["fusion_method"] == "weighted-composition":
+        assert (
+            model.transformer.transformer.h[0]
+            .output_adapters.adapter_fusion_layer[fusion_layer.name]
+            .unscaled_weights.requires_grad
+            == True
+        )
+    else:
+        assert (
+            model.transformer.transformer.h[0]
+            .output_adapters.adapter_fusion_layer[fusion_layer.name]
+            .query.weight.requires_grad
+            == True
+        )
 
 
 def update_adapter_library(adapter_library_file, adapter_name, ckpt_dir, metadata):
@@ -183,14 +197,16 @@ def update_adapter_library(adapter_library_file, adapter_name, ckpt_dir, metadat
         }
 
         # insert new adapter into library
-        adapter_library[adapter_name] = new_adapter_info
+        adapter_library[f"{adapter_name}_{metadata['exp_name']}"] = new_adapter_info
 
     # overwrite the file
     with open(adapter_library_file, "w") as f:
         yaml.safe_dump(adapter_library, f)
 
 
-def save_adapters(model, ckpt_dir, use_fusion=False, adapters=[], metadata=None):
+def save_adapters(
+    model, ckpt_dir, use_fusion, adapters: Union[list, str], metadata=None
+):
     if use_fusion:
         # save the fusion layer and each individual adapter
         model.transformer.save_adapter_fusion(ckpt_dir, adapters)

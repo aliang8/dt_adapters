@@ -1,6 +1,8 @@
 import numpy as np
 from PIL import Image
 import wandb
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 
 def split(a, n):
@@ -76,3 +78,34 @@ def save_videos_to_wandb(videos, task_name="", step=0, fps=10):
             )
         }
     )
+
+
+def visualize_fusion_attention(adapter_fusion_attentions, n_layers=4):
+    # the adapter fusion attention is of size [bs, seq_len, n_tasks]
+    # get layer-wise attention scores and log as heatmap
+    attn_matrix = None
+    attn_scores = adapter_fusion_attentions
+
+    key = list(attn_scores.keys())[0]
+
+    for idx in range(n_layers):
+        layer_weights = attn_scores[key][idx]["output_adapter"][np.newaxis, :]
+
+        if attn_matrix is None:
+            attn_matrix = layer_weights
+        else:
+            attn_matrix = np.concatenate([attn_matrix, layer_weights], axis=0)
+
+    # average over first and second dimension
+    # should be of size [n_layers, n_tasks]
+    attn_matrix = attn_matrix.mean(axis=1).mean(axis=1)
+
+    plt.clf()
+    ax = sns.heatmap(data=attn_matrix, vmin=0, vmax=1, annot=True, cmap="YlGnBu")
+    fig = ax.figure
+
+    # need to do this weird hack to first convert to PIL Image
+    img = Image.frombytes(
+        "RGB", fig.canvas.get_width_height(), fig.canvas.tostring_rgb()
+    )
+    return img

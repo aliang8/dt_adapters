@@ -275,6 +275,15 @@ class Trainer(object):
 
             # log metadata!
             if self.config.log_to_wandb:
+                # if we are using adapters, can visualize fusion weights for each task
+                if self.use_adapter and "adapter_fusion_attentions" in model_out:
+                    # the adapter fusion attention is of size [bs, seq_len, n_tasks]
+                    heatmap = viz_utils.visualize_fusion_attention(
+                        model_out["adapter_fusion_attentions"],
+                        n_layers=self.config.model.gpt2_cfg.n_layer,
+                    )
+                    log_dict["train/fusion_attention_map"] = wandb.Image(heatmap)
+
                 wandb.log(log_dict)
 
     def save_model(self, epoch):
@@ -288,19 +297,28 @@ class Trainer(object):
                 "best_eval_score": self.best_eval_score,
                 "best_eval_epoch": self.best_eval_epoch,
                 "ckpt_path": str(ckpt_dir),
+                "exp_name": self.config.exp_name,
             }
+
+            new_adapter_name = self.config.model.adapter_task_name
+            if self.config.model.use_adapter_fusion:
+                task_name = [new_adapter_name, *self.config.model.adapters_to_use]
+                task_name_str = ",".join(task_name)
+            else:
+                task_name = task_name_str = new_adapter_name
+
             # use HF util to save adapters
             adapter_utils.save_adapters(
                 self.model,
                 ckpt_dir,
                 self.config.model.use_adapter_fusion,
-                self.config.model.adapter_task_name,
+                task_name,
                 metadata,
             )
             # update the library of adapters
             adapter_utils.update_adapter_library(
                 self.config.model.adapter_library_file,
-                self.config.model.adapter_task_name,
+                task_name_str,
                 ckpt_dir,
                 metadata,
             )

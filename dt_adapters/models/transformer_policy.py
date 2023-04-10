@@ -139,6 +139,7 @@ class TransformerPolicy(TrajectoryModel):
 
         out = utils.AttrDict(
             action_preds=action_preds,
+            adapter_fusion_attentions=transformer_outputs["adapter_fusion_attentions"],
         )
         return out
 
