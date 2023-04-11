@@ -349,7 +349,7 @@ class Trainer(object):
                 # log general metadata
                 wandb.log(log_dict)
 
-    def x(self, epoch):
+    def save_model(self, epoch):
         if self.use_adapter:
             ckpt_dir = os.path.join(self.ckpt_dir, "models", f"epoch_{epoch:04d}")
             os.makedirs(ckpt_dir, exist_ok=True)
