@@ -140,7 +140,7 @@ class TransformerPolicy(TrajectoryModel):
         out = utils.AttrDict(
             action_preds=action_preds,
         )
-        
+
         # this applies during adapter training time
         if "adapter_attentions" in transformer_outputs:
             out.adapter_attentions = transformer_outputs["adapter_attentions"]
@@ -195,3 +195,16 @@ class TransformerPolicy(TrajectoryModel):
 
         # [B, T, action_dim]
         return model_out["action_preds"][0, -1]
+
+    def freeze_backbone(self):
+        modules_to_freeze = [
+            self.embed_state,
+            self.embed_timestep,
+            self.embed_action,
+            self.embed_ln,
+            self.predict_action,
+            self.transformer,
+        ]
+        for module in modules_to_freeze:
+            for param in module.parameters():
+                param.requires_grad = False

@@ -69,7 +69,7 @@ class Trainer(object):
             if os.path.exists(saved_config_file):
                 config = OmegaConf.load(saved_config_file)
 
-        self.ckpt_dir, self.eval_results_file = utils.setup_logging(config)
+        self.ckpt_dir = utils.setup_logging(config)
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
         self.use_adapter = (
@@ -147,52 +147,45 @@ class Trainer(object):
 
         adapter_name = self.config.model.adapter_task_name
 
-        # insert adapters
-        if self.config.model.use_single_adapter:
-            if self.config.stage == "eval":
-                # load from checkpoint during eval
-                adapter_utils.load_adapter(
-                    model, adapter_library, adapter_name=adapter_name
-                )
-            else:
-                # create a new adapter for the task
-                adapter_utils.insert_new_adapter(
-                    adapter_library,
-                    model,
-                    adapter_name,
-                    self.config.model.adapter_config.adapter,
-                )
-
-        if self.config.model.use_adapter_fusion:
-            if self.config.stage == "eval":
-                adapter_utils.load_fusion_layer(
-                    model,
-                    adapter_library,
-                    adapters_to_use=self.config.model.adapters_to_use,
-                    task_name=adapter_name,
-                )
-            else:
-                # create a fusion layer
-                adapter_utils.insert_new_fusion_layer(
-                    adapter_library,
-                    model,
-                    adapter_name,
-                    self.config.model.adapter_config,
-                    adapters_to_use=self.config.model.adapters_to_use,
-                )
-
-        if self.use_adapter:
-            print(model.transformer.adapter_summary())
-
         # load from checkpoint for fine-tuning
         if self.config.load_from_ckpt:
             model, start_epoch = utils.load_model_from_ckpt(
-                model, self.config, self.config.model_ckpt_dir, strict=False
+                model,
+                self.config,
+                self.config.model_ckpt_dir,
+                adapter_library,
+                strict=False,
             )
 
             # continue training from a previous checkpoint
             if self.config.resume_experiment:
                 self.start_epoch = start_epoch
+
+        if self.config.stage != "pretraining":
+            model.freeze_backbone()
+
+        # insert adapters
+        if self.config.model.use_single_adapter:
+            # create a new adapter for the task
+            adapter_utils.insert_new_adapter(
+                adapter_library,
+                model,
+                adapter_name,
+                self.config.model.adapter_config.adapter,
+            )
+
+        if self.config.model.use_adapter_fusion:
+            # create a fusion layer
+            adapter_utils.insert_new_fusion_layer(
+                adapter_library,
+                model,
+                adapter_name,
+                self.config.model.adapter_config,
+                adapters_to_use=self.config.model.adapters_to_use,
+            )
+
+        if self.use_adapter:
+            print(model.transformer.adapter_summary())
 
         # put model on device
         self.model = model.to(self.device)
@@ -258,8 +251,10 @@ class Trainer(object):
                 )
 
         # save results to json file
-        with open(self.eval_results_file, "a+") as f:
-            json.dump(metrics, f)
+        eval_results_file = os.path.join(self.ckpt_dir, "eval_results.txt")
+        with open(eval_results_file, "a+") as f:
+            f.write(f"epoch {epoch} eval metrics: \n")
+            f.write(json.dumps(metrics, indent=4))
 
     def compute_loss(self, batch, model_out):
         loss_dict = dict()
@@ -354,7 +349,7 @@ class Trainer(object):
                 # log general metadata
                 wandb.log(log_dict)
 
-    def save_model(self, epoch):
+    def x(self, epoch):
         if self.use_adapter:
             ckpt_dir = os.path.join(self.ckpt_dir, "models", f"epoch_{epoch:04d}")
             os.makedirs(ckpt_dir, exist_ok=True)

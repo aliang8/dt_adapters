@@ -10,6 +10,8 @@ import shutil
 from pathlib import Path
 from omegaconf import OmegaConf
 
+from dt_adapters.utils.adapter_utils import load_adapter, load_fusion_layer
+
 
 def set_all_seeds(seed):
     np.random.seed(seed)
@@ -124,7 +126,7 @@ def find_new_keys(d1, d2, path=""):
             print("\n".join(result))
 
 
-def load_model_from_ckpt(model, cfg, model_ckpt_dir, strict=True):
+def load_model_from_ckpt(model, cfg, model_ckpt_dir, adapter_library=None, strict=True):
     # loading from previous checkpoint
     ckpt_file = sorted(glob.glob(f"{model_ckpt_dir}/models/*"))[-1]
     print(f"loading pretrained model from {ckpt_file}")
@@ -144,6 +146,20 @@ def load_model_from_ckpt(model, cfg, model_ckpt_dir, strict=True):
     find_new_keys(OmegaConf.to_container(cfg), OmegaConf.to_container(prev_cfg))
 
     model.load_state_dict(state_dict["model"], strict=strict)
+
+    # load adapters and fusion layers here if relevant
+    adapter_name = cfg.model.adapter_task_name
+    if cfg.stage == "eval" and cfg.model.use_single_adapter:
+        load_adapter(model, adapter_library, adapter_name)
+
+    if cfg.stage == "eval" and cfg.model.use_adapter_fusion:
+        load_fusion_layer(
+            model,
+            adapter_library,
+            adapters_to_use=cfg.model.adapters_to_use,
+            task_name=adapter_name,
+        )
+
     return model, epoch
 
 
@@ -224,7 +240,7 @@ def setup_logging(config):
             entity="glamor",
         )
 
-    return ckpt_dir, config_file
+    return ckpt_dir
 
 
 class AttrDict(Dict):
