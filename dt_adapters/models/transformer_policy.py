@@ -139,8 +139,11 @@ class TransformerPolicy(TrajectoryModel):
 
         out = utils.AttrDict(
             action_preds=action_preds,
-            adapter_fusion_attentions=transformer_outputs["adapter_fusion_attentions"],
         )
+        
+        # this applies during adapter training time
+        if "adapter_attentions" in transformer_outputs:
+            out.adapter_attentions = transformer_outputs["adapter_attentions"]
         return out
 
     def get_action(

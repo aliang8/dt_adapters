@@ -72,6 +72,59 @@ def unfreeze_new_adapter(layer, adapter_name):
                 param.requires_grad = True
 
 
+def load_adapter(
+    model,
+    adapter_library=[],
+    adapters_to_use=[],
+    adapter_name="",
+    adapter_ckpt_path=None,
+):
+    if adapter_name:
+        if adapter_name not in adapter_library:
+            raise Exception(f"{adapter_name} not in adapter library")
+            exit()
+
+        adapter_ckpt_path = adapter_library[adapter_name]["ckpt_path"]
+
+        print(f"Loading {adapter_name} from {adapter_ckpt_path}")
+        pretrained_adapter = model.transformer.load_adapter(adapter_ckpt_path)
+
+        # set active so the adapters are used during the forward pass
+        model.transformer.set_active_adapters(adapter_name)
+    else:
+        # load pretrained adapters from library
+        for pretrained_adapter_name in adapters_to_use:
+            adapter_ckpt_path = adapter_library[pretrained_adapter_name]["ckpt_path"]
+
+            # make sure we are using the model with best checkpoint
+            base_path = os.path.dirname(adapter_ckpt_path)
+            best_epoch = adapter_library[pretrained_adapter_name]["best_eval_epoch"]
+            adapter_ckpt_path = os.path.join(base_path, f"epoch_{best_epoch:04d}")
+
+            if not os.path.exists(adapter_ckpt_path):
+                raise Exception(f"{adapter_ckpt_path} does not exist")
+                exit()
+
+            print(f"Loading {pretrained_adapter_name} from {adapter_ckpt_path}")
+            pretrained_adapter = model.transformer.load_adapter(adapter_ckpt_path)
+
+        model.transformer.set_active_adapters(adapters_to_use)
+
+
+def load_fusion_layer(model, adapter_library, adapters_to_use=[], task_name=""):
+    # load pretrained adapters
+    load_adapter(model, adapter_library, adapters_to_use)
+    fusion_layer_name = f"{task_name}" + "," + ",".join(adapters_to_use) + "_{exp_name}"
+    print("Loading fusion layer: ", fusion_layer_name)
+
+    if fusion_layer_name not in adapter_library:
+        raise Exception(f"{fusion_layer_name} not in adapter library")
+        exit()
+
+    fusion_layer_path = adapter_library[fusion_layer_name]["ckpt_path"]
+    model.transformer.load_adapter_fusion(fusion_layer_path, set_active=True)
+
+
 def insert_new_fusion_layer(
     adapter_library, model, new_adapter_name, config, adapters_to_use=[]
 ):
@@ -103,20 +156,11 @@ def insert_new_fusion_layer(
             raise Exception("{pretrained_adapter_name} not a valid adapter")
 
     # load pretrained adapters
-    for pretrained_adapter_name in adapters_to_use:
-        adapter_ckpt_path = adapter_library[pretrained_adapter_name]["ckpt_path"]
-
-        # make sure we are using the model with best checkpoint
-        base_path = os.path.dirname(adapter_ckpt_path)
-        best_epoch = adapter_library[pretrained_adapter_name]["best_eval_epoch"]
-        adapter_ckpt_path = os.path.join(base_path, f"epoch_{best_epoch:04d}")
-
-        if not os.path.exists(adapter_ckpt_path):
-            raise Exception(f"{adapter_ckpt_path} does not exist")
-            exit()
-
-        print(f"Loading {pretrained_adapter_name} from {adapter_ckpt_path}")
-        pretrained_adapter = model.transformer.load_adapter(adapter_ckpt_path)
+    load_adapter(
+        model,
+        adapter_library=adapter_library,
+        adapters_to_use=adapters_to_use,
+    )
 
     # add the new trainable adapter
     all_single_task_adapters = [new_adapter_name] + adapters_to_use
@@ -134,7 +178,7 @@ def insert_new_fusion_layer(
         fusion_layer, config=base_fusion_config, set_active=True
     )
 
-    # training both a new adapter and the fusion layer
+    # activate the adapters
     model.transformer.set_active_adapters([fusion_layer, *all_single_task_adapters])
 
     # make sure all the other weights are frozen except fusion layer and new adapter
@@ -163,7 +207,7 @@ def insert_new_fusion_layer(
         == True
     )
 
-    # check the the fusion layer is trainable
+    # check the the fusion layers/weights are trainable
     if base_fusion_config["fusion_method"] == "weighted-composition":
         assert (
             model.transformer.transformer.h[0]

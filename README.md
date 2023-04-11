@@ -74,10 +74,20 @@ CUDA_VISIBLE_DEVICES=1 DISPLAY=:0 python3 dt_adapters/trainer.py \
 CUDA_VISIBLE_DEVICES=1 DISPLAY=:0 python3 dt_adapters/trainer.py \
     --config-name=finetune_fusion \
     data.eval_task=bin-picking-v2 \
-    general.exp_name=finetune_fusion \
+    general.exp_name=finetune_fusion_test \
     general.model_ckpt_dir=/data/anthony/dt_adapters/results/pretraining_40_tasks_scheduler_2 \
-    model.adapters_to_use=[pick-place-v2]
+    model.adapters_to_use=[pick-place-v2,door-open-v2]
+
+
+# Eval trained model
+CUDA_VISIBLE_DEVICES=3 DISPLAY=:0 python3 dt_adapters/trainer.py \
+    --config-name=eval \
+    data.eval_task=pick-place-v2 \
+    general.exp_name=single_task_adapter_pick-place-v2 \
+    general.model_ckpt_dir=/data/anthony/dt_adapters/results/pretraining_40_tasks_scheduler_2 \
+    model.use_single_adapter=True \
 ```
+
 
 ```
 Run with gpu-hog for parallelizing multiple jobs

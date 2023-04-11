@@ -147,7 +147,9 @@ def load_model_from_ckpt(model, cfg, model_ckpt_dir, strict=True):
     return model, epoch
 
 
-def create_optimizer(optim_cls, model, lr, weight_decay, warmup_steps):
+def create_optimizer(
+    optim_cls, model, lr, weight_decay, warmup_steps, use_scheduler=True
+):
     # setup optimizer and scheduler
     if optim_cls == "adam":
         optim_cls = torch.optim.Adam
@@ -162,10 +164,13 @@ def create_optimizer(optim_cls, model, lr, weight_decay, warmup_steps):
         weight_decay=weight_decay,
     )
 
-    scheduler = torch.optim.lr_scheduler.LambdaLR(
-        optimizer,
-        lambda steps: min((steps + 1) / warmup_steps, 1),
-    )
+    if use_scheduler:
+        scheduler = torch.optim.lr_scheduler.LambdaLR(
+            optimizer,
+            lambda steps: min((steps + 1) / warmup_steps, 1),
+        )
+    else:
+        scheduler = None
     return optimizer, scheduler
 
 
@@ -188,7 +193,11 @@ def setup_logging(config):
 
     # check if this experiment already exists
     # create results folders
-    if os.path.exists(ckpt_dir) and not config.resume_experiment and not config.overwrite_folder:
+    if (
+        os.path.exists(ckpt_dir)
+        and not config.resume_experiment
+        and not config.overwrite_folder
+    ):
         overwrite = input(f"{ckpt_dir} already exists, overwrite [y/n]")
 
         if overwrite == "y":
@@ -201,6 +210,12 @@ def setup_logging(config):
         os.makedirs(ckpt_dir, exist_ok=True)
         os.makedirs(ckpt_dir / "models", exist_ok=True)
 
+    # save config to yaml file
+    config_file = ckpt_dir / "config.yaml"
+    if not os.path.exists(config_file):
+        with open(config_file, "w") as f:
+            OmegaConf.save(config, f)
+
     if config.log_to_wandb:
         wandb.init(
             name=config.exp_name,
@@ -209,7 +224,7 @@ def setup_logging(config):
             entity="glamor",
         )
 
-    return ckpt_dir
+    return ckpt_dir, config_file
 
 
 class AttrDict(Dict):

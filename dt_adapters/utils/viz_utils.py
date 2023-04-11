@@ -1,3 +1,4 @@
+import torch
 import numpy as np
 from PIL import Image
 import wandb
@@ -80,25 +81,31 @@ def save_videos_to_wandb(videos, task_name="", step=0, fps=10):
     )
 
 
-def visualize_fusion_attention(adapter_fusion_attentions, n_layers=4):
+def extract_attn_matrix(attn_dict):
+    key = list(attn_dict.keys())[0]
+
+    attn_matrix = []
+
+    for k, attn_weights in attn_dict[key].items():
+        attn_matrix.append(attn_weights["output_adapter"])
+
+    attn_matrix = torch.stack(attn_matrix, dim=0)
+    return attn_matrix
+
+
+def visualize_fusion_attention(fusion_method, attn_dict, n_layers=4):
     # the adapter fusion attention is of size [bs, seq_len, n_tasks]
     # get layer-wise attention scores and log as heatmap
-    attn_matrix = None
-    attn_scores = adapter_fusion_attentions
+    # it should be of size [n_tasks] for weighted-composition
+    attn_matrix = extract_attn_matrix(attn_dict)
 
-    key = list(attn_scores.keys())[0]
+    # detach and convert to numpy
+    attn_matrix = attn_matrix.detach().cpu().numpy()
 
-    for idx in range(n_layers):
-        layer_weights = attn_scores[key][idx]["output_adapter"][np.newaxis, :]
-
-        if attn_matrix is None:
-            attn_matrix = layer_weights
-        else:
-            attn_matrix = np.concatenate([attn_matrix, layer_weights], axis=0)
-
-    # average over first and second dimension
-    # should be of size [n_layers, n_tasks]
-    attn_matrix = attn_matrix.mean(axis=1).mean(axis=1)
+    if fusion_method == "bert-fusion":
+        # average over first and second dimension for bert-fusion
+        # should be of size [n_layers, n_tasks]
+        attn_matrix = attn_matrix.mean(axis=1).mean(axis=1)
 
     plt.clf()
     ax = sns.heatmap(data=attn_matrix, vmin=0, vmax=1, annot=True, cmap="YlGnBu")

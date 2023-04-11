@@ -37,6 +37,7 @@ import matplotlib.pyplot as plt
 from PIL import Image
 from dt_adapters.rollout import run_single_rollout
 
+from torch.distributions import Categorical
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset, Sampler, RandomSampler
 
@@ -60,7 +61,15 @@ class Trainer(object):
         self.start_epoch = 0
         self.total_training_iters = 0
 
-        self.ckpt_dir = utils.setup_logging(config)
+        # if eval from checkpoint file, load the config from the checkpoint file
+        if self.config.stage == "eval":
+            saved_config_file = os.path.join(
+                self.config.log_dir, self.config.exp_name, "config.yaml"
+            )
+            if os.path.exists(saved_config_file):
+                config = OmegaConf.load(saved_config_file)
+
+        self.ckpt_dir, self.eval_results_file = utils.setup_logging(config)
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
         self.use_adapter = (
@@ -74,6 +83,7 @@ class Trainer(object):
             self.config.lr,
             self.config.weight_decay,
             self.config.warmup_steps,
+            self.config.use_lr_scheduler,
         )
 
         # setup dataset
@@ -84,7 +94,9 @@ class Trainer(object):
         self.eval_metrics = None
 
         # setup env for eval
-        if self.config.stage == "finetune" and self.config.eval_every > 0:
+        if (
+            self.config.stage == "finetune" and self.config.eval_every > 0
+        ) or self.config.stage == "eval":
             self.env = env_constructor(
                 domain="metaworld",
                 task_name=self.config.data.eval_task,
@@ -137,23 +149,37 @@ class Trainer(object):
 
         # insert adapters
         if self.config.model.use_single_adapter:
-            # create a new adapter for the task
-            adapter_utils.insert_new_adapter(
-                adapter_library,
-                model,
-                adapter_name,
-                self.config.model.adapter_config.adapter,
-            )
+            if self.config.stage == "eval":
+                # load from checkpoint during eval
+                adapter_utils.load_adapter(
+                    model, adapter_library, adapter_name=adapter_name
+                )
+            else:
+                # create a new adapter for the task
+                adapter_utils.insert_new_adapter(
+                    adapter_library,
+                    model,
+                    adapter_name,
+                    self.config.model.adapter_config.adapter,
+                )
 
         if self.config.model.use_adapter_fusion:
-            # create a fusion layer
-            adapter_utils.insert_new_fusion_layer(
-                adapter_library,
-                model,
-                adapter_name,
-                self.config.model.adapter_config,
-                adapters_to_use=self.config.model.adapters_to_use,
-            )
+            if self.config.stage == "eval":
+                adapter_utils.load_fusion_layer(
+                    model,
+                    adapter_library,
+                    adapters_to_use=self.config.model.adapters_to_use,
+                    task_name=adapter_name,
+                )
+            else:
+                # create a fusion layer
+                adapter_utils.insert_new_fusion_layer(
+                    adapter_library,
+                    model,
+                    adapter_name,
+                    self.config.model.adapter_config,
+                    adapters_to_use=self.config.model.adapters_to_use,
+                )
 
         if self.use_adapter:
             print(model.transformer.adapter_summary())
@@ -170,7 +196,11 @@ class Trainer(object):
 
         # put model on device
         self.model = model.to(self.device)
-        self.model.train()
+
+        if self.config.stage == "eval":
+            self.model.eval()
+        else:
+            self.model.train()
 
         print("final model params: ", utils.count_parameters(model))
         self.model.share_memory()
@@ -227,6 +257,44 @@ class Trainer(object):
                     fps=self.config.fps,
                 )
 
+        # save results to json file
+        with open(self.eval_results_file, "a+") as f:
+            json.dump(metrics, f)
+
+    def compute_loss(self, batch, model_out):
+        loss_dict = dict()
+        mask = batch["attention_mask"].reshape(-1) > 0
+        action_preds = model_out["action_preds"]
+        action_target = torch.clone(batch["actions"]).float()
+
+        # flatten the first dimension
+        action_preds = einops.rearrange(action_preds, "b t d -> (b t) d")[mask]
+        action_target = einops.rearrange(action_target, "b t d -> (b t) d")[mask]
+
+        # compute loss between prediction and ground truth actions
+        action_pred_loss = self.loss_fn(action_preds, action_target)
+        loss_dict["action_pred_loss"] = action_pred_loss
+
+        # for weighted-composition, add an extra entropy loss term to avoid uniform solution
+        entropy_loss = 0
+        fusion_method = self.config.model.adapter_config.fusion.fusion_method
+        if (
+            self.config.model.use_adapter_fusion
+            and fusion_method == "weighted-composition"
+        ):
+            attn_dict = model_out["adapter_fusion_attentions"]
+            attn_matrix = viz_utils.extract_attn_matrix(attn_dict)
+
+            # want to minimize entropy
+            entropy_loss = Categorical(probs=attn_matrix).entropy().mean()
+            entropy_loss = (
+                self.config.model.adapter_config.fusion.entropy_loss_weight
+                * entropy_loss
+            )
+            loss_dict["entropy_loss"] = entropy_loss
+
+        return loss_dict
+
     def train_single_iteration(self):
         # iterate over the entire dataset once
         # dataset should consists of (s,a) trajectories
@@ -238,22 +306,15 @@ class Trainer(object):
             # put tensors on gpu
             batch = utils.to_device(batch, self.device)
 
-            action_target = torch.clone(batch["actions"]).float()
-
             # feed inputs to model to get action predictions
             model_out = self.model.forward(**batch)
 
-            mask = batch["attention_mask"].reshape(-1) > 0
-            action_preds = model_out["action_preds"]
-            action_preds = einops.rearrange(action_preds, "b t d -> (b t) d")[mask]
-            action_target = einops.rearrange(action_target, "b t d -> (b t) d")[mask]
+            # returns dictionary of inidivual loss terms
+            loss_dict = self.compute_loss(batch, model_out)
 
-            # compute loss between prediction and ground truth actions
-            action_pred_loss = self.loss_fn(action_preds, action_target)
-
-            # compute gradients and update the modelparameters
+            # compute gradients and update the model parameters
             self.optimizer.zero_grad()
-            total_loss = action_pred_loss
+            total_loss = sum(list(loss_dict.values()))
             total_loss.backward()
             max_norm, total_norm = utils.compute_gradient_norms(self.model)
 
@@ -262,28 +323,35 @@ class Trainer(object):
             self.optimizer.step()
 
             log_dict = {
-                "train/action_pred_loss": action_pred_loss.item(),
                 "train/max_norm": max_norm,
                 "train/total_norm": total_norm,
                 "train/time_per_iter": time.time() - start,
             }
 
+            log_dict.update({f"train/{k}": v.item() for k, v in loss_dict.items()})
+
             # update learning rate if we are using a scheduler
-            if self.scheduler is not None and self.config.use_lr_scheduler:
+            if self.config.use_lr_scheduler:
                 self.scheduler.step()
                 log_dict["train/lr"] = self.scheduler.get_last_lr()[0]
 
             # log metadata!
             if self.config.log_to_wandb:
-                # if we are using adapters, can visualize fusion weights for each task
-                if self.use_adapter and "adapter_fusion_attentions" in model_out:
-                    # the adapter fusion attention is of size [bs, seq_len, n_tasks]
+                # if we are using adapters, visualize fusion weights
+                if (
+                    self.config.model.use_adapter_fusion
+                    and "adapter_fusion_attentions" in model_out
+                ):
+                    # the adapter fusion attention is of size [bs, seq_len, n_tasks] for bert-fusion
+                    # it should be of size [n_tasks] for weighted-composition
                     heatmap = viz_utils.visualize_fusion_attention(
+                        self.config.model.adapter_config.fusion.fusion_method,
                         model_out["adapter_fusion_attentions"],
                         n_layers=self.config.model.gpt2_cfg.n_layer,
                     )
                     log_dict["train/fusion_attention_map"] = wandb.Image(heatmap)
 
+                # log general metadata
                 wandb.log(log_dict)
 
     def save_model(self, epoch):
@@ -379,7 +447,10 @@ def main(config):
     print("=" * 50)
 
     trainer = Trainer(config)
-    trainer.train()
+    if config.stage == "eval":
+        trainer.eval(0)
+    else:
+        trainer.train()
 
 
 if __name__ == "__main__":

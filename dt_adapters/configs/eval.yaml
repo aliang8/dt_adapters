@@ -1,0 +1,16 @@
+# base configuration for training 
+defaults:
+  - model: 
+    - base
+    - transformer
+  - data: 
+    - base 
+  - general: base
+
+# add modifications to the config here
+general:
+  num_eval_rollouts: 20
+  stage: eval
+  log_to_wandb: False
+  resume_experiment: True 
+  load_from_ckpt: True

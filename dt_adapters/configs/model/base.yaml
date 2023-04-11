@@ -18,6 +18,7 @@ adapter_config:
     reduction_factor: none
 
   fusion:
-    fusion_method: bert-fusion
+    fusion_method: bert-fusion # weighted-composition
     weights_initialization: uniform
     unfreeze_task_adapter: False
+    entropy_loss_weight: 1.0
