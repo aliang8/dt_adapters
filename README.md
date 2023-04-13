@@ -83,9 +83,15 @@ CUDA_VISIBLE_DEVICES=1 DISPLAY=:0 python3 dt_adapters/trainer.py \
 CUDA_VISIBLE_DEVICES=3 DISPLAY=:0 python3 dt_adapters/trainer.py \
     --config-name=eval \
     data.eval_task=pick-place-v2 \
-    general.exp_name=single_task_adapter_pick-place-v2 \
+    general.exp_name=sta \
     general.model_ckpt_dir=/data/anthony/dt_adapters/results/pretraining_40_tasks_scheduler_2 \
     model.use_single_adapter=True \
+```
+
+```
+Structure of adapter_library:
+
+
 ```
 
 

@@ -93,7 +93,7 @@ def extract_attn_matrix(attn_dict):
     return attn_matrix
 
 
-def visualize_fusion_attention(fusion_method, attn_dict, n_layers=4):
+def visualize_fusion_attention(fusion_method, attn_dict, adapters_to_use=[]):
     # the adapter fusion attention is of size [bs, seq_len, n_tasks]
     # get layer-wise attention scores and log as heatmap
     # it should be of size [n_tasks] for weighted-composition
@@ -109,6 +109,13 @@ def visualize_fusion_attention(fusion_method, attn_dict, n_layers=4):
 
     plt.clf()
     ax = sns.heatmap(data=attn_matrix, vmin=0, vmax=1, annot=True, cmap="YlGnBu")
+
+    # add labels for which adapters are being used
+    ax.set_xticklabels(adapters_to_use)
+
+    # rotate the labels
+    ax.xticks(rotation=45)
+
     fig = ax.figure
 
     # need to do this weird hack to first convert to PIL Image

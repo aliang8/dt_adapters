@@ -148,16 +148,16 @@ def load_model_from_ckpt(model, cfg, model_ckpt_dir, adapter_library=None, stric
     model.load_state_dict(state_dict["model"], strict=strict)
 
     # load adapters and fusion layers here if relevant
-    adapter_name = cfg.model.adapter_task_name
+    adapter_key = f"{cfg.model.adapter_task_name}_{cfg.exp_name}"
     if cfg.stage == "eval" and cfg.model.use_single_adapter:
-        load_adapter(model, adapter_library, adapter_name)
+        load_adapter(model, adapter_library, adapter_key=adapter_key)
 
     if cfg.stage == "eval" and cfg.model.use_adapter_fusion:
         load_fusion_layer(
             model,
             adapter_library,
             adapters_to_use=cfg.model.adapters_to_use,
-            task_name=adapter_name,
+            task_name=adapter_key,
         )
 
     return model, epoch
@@ -205,7 +205,15 @@ def compute_gradient_norms(model):
 
 
 def setup_logging(config):
-    ckpt_dir = Path(os.path.join(config.log_dir, config.exp_name))
+    if config.stage == "pretraining":
+        ckpt_dir = Path(os.path.join(config.log_dir, config.exp_name, config.seed))
+    elif config.stage == "finetune":
+        ckpt_dir = Path(
+            os.path.join(
+                config.log_dir, config.exp_name, config.data.eval_task, str(config.seed)
+            )
+        )
+    config.ckpt_dir = ckpt_dir
 
     # check if this experiment already exists
     # create results folders

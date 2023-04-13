@@ -28,6 +28,7 @@ import numpy as np
 from pathlib import Path
 from pprint import pprint
 from tqdm import tqdm
+from datetime import datetime
 from collections import OrderedDict
 from omegaconf import OmegaConf
 import torch.multiprocessing as mp
@@ -61,15 +62,18 @@ class Trainer(object):
         self.start_epoch = 0
         self.total_training_iters = 0
 
+        self.ckpt_dir = utils.setup_logging(self.config)
+
         # if eval from checkpoint file, load the config from the checkpoint file
         if self.config.stage == "eval":
+            print("running eval, loading config from experiment config file")
             saved_config_file = os.path.join(
                 self.config.log_dir, self.config.exp_name, "config.yaml"
             )
             if os.path.exists(saved_config_file):
-                config = OmegaConf.load(saved_config_file)
+                exp_config = OmegaConf.load(saved_config_file)
+                self.config.model.update(exp_config.model)
 
-        self.ckpt_dir = utils.setup_logging(config)
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
         self.use_adapter = (
@@ -164,25 +168,26 @@ class Trainer(object):
         if self.config.stage != "pretraining":
             model.freeze_backbone()
 
-        # insert adapters
-        if self.config.model.use_single_adapter:
-            # create a new adapter for the task
-            adapter_utils.insert_new_adapter(
-                adapter_library,
-                model,
-                adapter_name,
-                self.config.model.adapter_config.adapter,
-            )
+        if self.config.stage != "eval":
+            # insert new adapters
+            if self.config.model.use_single_adapter:
+                # create a new adapter for the task
+                adapter_utils.insert_new_adapter(
+                    adapter_library,
+                    model,
+                    adapter_name,
+                    self.config.model.adapter_config.adapter,
+                )
 
-        if self.config.model.use_adapter_fusion:
-            # create a fusion layer
-            adapter_utils.insert_new_fusion_layer(
-                adapter_library,
-                model,
-                adapter_name,
-                self.config.model.adapter_config,
-                adapters_to_use=self.config.model.adapters_to_use,
-            )
+            if self.config.model.use_adapter_fusion:
+                # create a fusion layer
+                adapter_utils.insert_new_fusion_layer(
+                    adapter_library,
+                    model,
+                    adapter_name,
+                    self.config.model.adapter_config,
+                    adapters_to_use=self.config.model.adapters_to_use,
+                )
 
         if self.use_adapter:
             print(model.transformer.adapter_summary())
@@ -337,12 +342,16 @@ class Trainer(object):
                     self.config.model.use_adapter_fusion
                     and "adapter_fusion_attentions" in model_out
                 ):
+                    x_labels = (
+                        self.config.model.adapter_config.adapters_to_use
+                        + self.config.data.eval_task
+                    )
                     # the adapter fusion attention is of size [bs, seq_len, n_tasks] for bert-fusion
                     # it should be of size [n_tasks] for weighted-composition
                     heatmap = viz_utils.visualize_fusion_attention(
                         self.config.model.adapter_config.fusion.fusion_method,
                         model_out["adapter_fusion_attentions"],
-                        n_layers=self.config.model.gpt2_cfg.n_layer,
+                        adapters_to_use=x_labels,
                     )
                     log_dict["train/fusion_attention_map"] = wandb.Image(heatmap)
 
@@ -354,6 +363,8 @@ class Trainer(object):
             ckpt_dir = os.path.join(self.ckpt_dir, "models", f"epoch_{epoch:04d}")
             os.makedirs(ckpt_dir, exist_ok=True)
 
+            now = datetime.now()
+
             metadata = {
                 "epoch": epoch,
                 "total_training_iters": self.total_training_iters,
@@ -361,6 +372,8 @@ class Trainer(object):
                 "best_eval_epoch": self.best_eval_epoch,
                 "ckpt_path": str(ckpt_dir),
                 "exp_name": self.config.exp_name,
+                "time": now.strftime("%d/%m/%Y %H:%M:%S"),
+                "seed": self.config.seed,
             }
 
             new_adapter_name = self.config.model.adapter_task_name

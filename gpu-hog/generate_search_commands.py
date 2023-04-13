@@ -9,19 +9,21 @@ python3 generate_search_commands.py \
     --model_ckpt_dir /data/anthony/dt_adapters/results/pretraining_40_tasks_scheduler_2 \
     --output_script_file fusion_sta_run.sh \
     --run_sta 0 \
-    --exp_prefix sta
+    --exp_prefix sta_fusion \
+    --seeds 0
 
 python3 generate_search_commands.py \
     --model_ckpt_dir /data/anthony/dt_adapters/results/pretraining_40_tasks_scheduler_2 \
     --output_script_file fusion_run.sh \
     --fusion 1 \
-    --exp_prefix fusion \
+    --exp_prefix bert_fusion \
     --seeds 0 1 2
     
 python3 generate_search_commands.py \
     --model_ckpt_dir /data/anthony/dt_adapters/results/pretraining_40_tasks_scheduler_2 \
     --output_script_file fusion_weighted_comp_run.sh \
     --fusion 1 \
+    --seeds 0 \
     --exp_prefix fusion_weighted_comp
 """
 
@@ -73,6 +75,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
     print(vars(args))
 
+    sta_exp_name = "sta"
+
     if args.fusion:  # run fusion experiment
         config_name = "finetune_fusion"
         tasks = fusion_tasks
@@ -92,13 +96,24 @@ if __name__ == "__main__":
                     # "config-name": "finetune",
                     "general.seed": int(seed),
                     "data.eval_task": task,
-                    "general.exp_name": f"{args.exp_prefix}_{task}_s_{int(seed)}",
+                    "general.exp_name": args.exp_prefix,
                     "general.model_ckpt_dir": args.model_ckpt_dir,
                     "general.overwrite_folder": True,
                     "general.log_to_wandb": True,
-                    "model.adapters_to_use": "[" + ",".join(st_adapter_tasks) + "]",
-                    # "model.adapter_config.fusion.fusion_method": "weighted-composition",
                 }
+
+                if "fusion" in config_name:
+                    adapters_to_use = [
+                        f"{adapter}_{sta_exp_name}_{int(seed)}"
+                        for adapter in st_adapter_tasks
+                    ]
+                    adapters_to_use = "[" + ",".join(adapters_to_use) + "]"
+                    command_args.update(
+                        {
+                            "model.adapters_to_use": adapters_to_use,
+                            # "model.adapter_config.fusion.fusion_method": "weighted-composition",
+                        }
+                    )
 
                 exp_name = f"{args.exp_prefix}_finetune_{task}"
                 cmd = f"DISPLAY=:0 python3 ../dt_adapters/trainer.py --config-name={config_name}"

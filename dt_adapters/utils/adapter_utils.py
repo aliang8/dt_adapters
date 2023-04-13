@@ -76,52 +76,51 @@ def load_adapter(
     model,
     adapter_library=[],
     adapters_to_use=[],
-    adapter_name="",
+    adapter_key="",
     adapter_ckpt_path=None,
 ):
-    if adapter_name:
-        if adapter_name not in adapter_library:
-            raise Exception(f"{adapter_name} not in adapter library")
+    if adapter_key:
+        if adapter_key not in adapter_library:
+            raise Exception(f"{adapter_key} not in adapter library")
             exit()
 
-        adapter_ckpt_path = adapter_library[adapter_name]["ckpt_path"]
+        # make sure we are using the model with best checkpoint
+        adapter_ckpt_path = adapter_library[adapter_key]["ckpt_path"]
+        base_path = os.path.dirname(adapter_ckpt_path)
+        best_epoch = adapter_library[adapter_key]["best_eval_epoch"]
+        adapter_name = adapter_library[adapter_key]["name"]
+        adapter_ckpt_path = os.path.join(base_path, f"epoch_{best_epoch:04d}")
 
         print(f"Loading {adapter_name} from {adapter_ckpt_path}")
         pretrained_adapter = model.transformer.load_adapter(adapter_ckpt_path)
 
         # set active so the adapters are used during the forward pass
         model.transformer.set_active_adapters(adapter_name)
+        return adapter_name
     else:
         # load pretrained adapters from library
-        for pretrained_adapter_name in adapters_to_use:
-            adapter_ckpt_path = adapter_library[pretrained_adapter_name]["ckpt_path"]
+        adapters_names = []
+        for pretrained_adapter_key in adapters_to_use:
+            adapter_name = load_adapter(
+                model, adapter_library, adapter_key=pretrained_adapter_key
+            )
+            adapters_names.append(adapter_name)
 
-            # make sure we are using the model with best checkpoint
-            base_path = os.path.dirname(adapter_ckpt_path)
-            best_epoch = adapter_library[pretrained_adapter_name]["best_eval_epoch"]
-            adapter_ckpt_path = os.path.join(base_path, f"epoch_{best_epoch:04d}")
-
-            if not os.path.exists(adapter_ckpt_path):
-                raise Exception(f"{adapter_ckpt_path} does not exist")
-                exit()
-
-            print(f"Loading {pretrained_adapter_name} from {adapter_ckpt_path}")
-            pretrained_adapter = model.transformer.load_adapter(adapter_ckpt_path)
-
-        model.transformer.set_active_adapters(adapters_to_use)
+        model.transformer.set_active_adapters(adapters_names)
+        return adapters_names
 
 
 def load_fusion_layer(model, adapter_library, adapters_to_use=[], task_name=""):
     # load pretrained adapters
     load_adapter(model, adapter_library, adapters_to_use)
-    fusion_layer_name = f"{task_name}" + "," + ",".join(adapters_to_use) + "_{exp_name}"
-    print("Loading fusion layer: ", fusion_layer_name)
+    fusion_layer_key = f"{task_name}" + "," + ",".join(adapters_to_use) + "_{exp_name}"
+    print("Loading fusion layer: ", fusion_layer_key)
 
-    if fusion_layer_name not in adapter_library:
-        raise Exception(f"{fusion_layer_name} not in adapter library")
+    if fusion_layer_key not in adapter_library:
+        raise Exception(f"{fusion_layer_key} not in adapter library")
         exit()
 
-    fusion_layer_path = adapter_library[fusion_layer_name]["ckpt_path"]
+    fusion_layer_path = adapter_library[fusion_layer_key]["ckpt_path"]
     model.transformer.load_adapter_fusion(fusion_layer_path, set_active=True)
 
 
@@ -133,7 +132,6 @@ def insert_new_fusion_layer(
 
     New adapter is trainable and pretrained adapters are frozen along with the backbone.
     """
-
     # initialize fusion configuration
     base_fusion_config = dict(DynamicAdapterFusionConfig())
     base_fusion_config.update(OmegaConf.to_container(config.fusion))
@@ -153,17 +151,17 @@ def insert_new_fusion_layer(
     # check that all adapters exist
     for pretrained_adapter_name in adapters_to_use:
         if not pretrained_adapter_name in adapter_library:
-            raise Exception("{pretrained_adapter_name} not a valid adapter")
+            raise Exception(f"{pretrained_adapter_name} not a valid adapter")
 
     # load pretrained adapters
-    load_adapter(
+    adapters_names = load_adapter(
         model,
         adapter_library=adapter_library,
         adapters_to_use=adapters_to_use,
     )
 
     # add the new trainable adapter
-    all_single_task_adapters = [new_adapter_name] + adapters_to_use
+    all_single_task_adapters = [new_adapter_name] + adapters_names
     adapter_config = config.adapter
     adapter_config["nonlinearity"] = None
     adapter_config["reduction_factor"] = None
@@ -190,7 +188,7 @@ def insert_new_fusion_layer(
     )
 
     # sanity checks to make sure that previous adapter weights are frozen
-    for pretrained_adapter_name in adapters_to_use:
+    for pretrained_adapter_name in adapters_names:
         requires_grad = False
         assert (
             model.transformer.transformer.h[0]
@@ -241,7 +239,9 @@ def update_adapter_library(adapter_library_file, adapter_name, ckpt_dir, metadat
         }
 
         # insert new adapter into library
-        adapter_library[f"{adapter_name}_{metadata['exp_name']}"] = new_adapter_info
+        adapter_library[
+            f"{adapter_name}_{metadata['exp_name']}_{metadata['seed']}"
+        ] = new_adapter_info
 
     # overwrite the file
     with open(adapter_library_file, "w") as f:
