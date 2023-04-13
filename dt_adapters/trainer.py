@@ -181,7 +181,10 @@ class Trainer(object):
 
             if self.config.model.use_adapter_fusion:
                 # create a fusion layer
-                self.fusion_name, _ = adapter_utils.insert_new_fusion_layer(
+                (
+                    self.fusion_name,
+                    self.adapter_names,
+                ) = adapter_utils.insert_new_fusion_layer(
                     adapter_library,
                     model,
                     adapter_name,
@@ -377,19 +380,23 @@ class Trainer(object):
             }
 
             new_adapter_name = self.config.model.adapter_task_name
+            if self.config.model.use_adapter_fusion:
+                task_name_str = ",".join(self.adapter_names)
+            else:
+                task_name = task_name_str = new_adapter_name
 
             # use HF util to save adapters
             adapter_utils.save_adapters(
                 self.model,
                 model_ckpt_dir,
                 self.config.model.use_adapter_fusion,
-                self.fusion_name,
+                task_name_str,
                 metadata,
             )
             # update the library of adapters
             adapter_utils.update_adapter_library(
                 self.config.model.adapter_library_file,
-                self.adapter_name,
+                task_name_str,
                 model_ckpt_dir,
                 metadata,
             )
@@ -408,6 +415,7 @@ class Trainer(object):
             )
 
     def train(self):
+        self.save_model(0)
         # main train loop
         # iterate over the dataset for a fixed number of epochs
         print(f"starting epoch: {self.start_epoch}")

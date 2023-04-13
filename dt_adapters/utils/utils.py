@@ -242,7 +242,7 @@ def setup_logging(config):
 
     if config.log_to_wandb:
         wandb.init(
-            name=config.exp_name,
+            name=f"{config.exp_name}_{config.data.eval_task}_{config.seed}",
             project=config.project_name,
             config=OmegaConf.to_container(config),
             entity="glamor",
