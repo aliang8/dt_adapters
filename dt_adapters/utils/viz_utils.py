@@ -11,6 +11,17 @@ def split(a, n):
     return (a[i * k + min(i, m) : (i + 1) * k + min(i + 1, m)] for i in range(n))
 
 
+def fig2img(fig):
+    """Convert a Matplotlib figure to a PIL Image and return it"""
+    import io
+
+    buf = io.BytesIO()
+    fig.savefig(buf, bbox_inches="tight")
+    buf.seek(0)
+    img = Image.open(buf)
+    return img
+
+
 def create_video_grid(videos, max_columns=5):
     # wandb needs videos to be in BxCxHxW
     n_frames, height, width, channel = videos[0].shape
@@ -89,7 +100,12 @@ def extract_attn_matrix(attn_dict):
     for k, attn_weights in attn_dict[key].items():
         attn_matrix.append(attn_weights["output_adapter"])
 
-    attn_matrix = torch.stack(attn_matrix, dim=0)
+    if type(attn_matrix[0]) == np.ndarray:
+        attn_matrix = np.stack(attn_matrix, axis=0)
+        return torch.tensor(attn_matrix)
+    else:
+        attn_matrix = torch.stack(attn_matrix, dim=0)
+
     return attn_matrix
 
 
@@ -108,18 +124,25 @@ def visualize_fusion_attention(fusion_method, attn_dict, adapters_to_use=[]):
         attn_matrix = attn_matrix.mean(axis=1).mean(axis=1)
 
     plt.clf()
-    ax = sns.heatmap(data=attn_matrix, vmin=0, vmax=1, annot=True, cmap="YlGnBu")
+    plt.tight_layout()
+    fig = plt.figure(figsize=(10, 10))
 
-    # add labels for which adapters are being used
-    ax.set_xticklabels(adapters_to_use)
+    ax = sns.heatmap(
+        data=attn_matrix,
+        vmin=0,
+        vmax=1,
+        annot=True,
+        cmap="YlGnBu",
+        xticklabels=adapters_to_use,
+    )
 
     # rotate the labels
-    ax.xticks(rotation=45)
+    # plt.xticks(rotation=45)
+    if ax.get_xticklabels():
+        ax.set_xticklabels(ax.get_xticklabels(), rotation=45)
 
-    fig = ax.figure
+    fig = plt.gcf()
 
     # need to do this weird hack to first convert to PIL Image
-    img = Image.frombytes(
-        "RGB", fig.canvas.get_width_height(), fig.canvas.tostring_rgb()
-    )
+    img = fig2img(fig)
     return img

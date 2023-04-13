@@ -355,10 +355,7 @@ class Trainer(object):
                     self.config.model.use_adapter_fusion
                     and "adapter_fusion_attentions" in model_out
                 ):
-                    x_labels = (
-                        self.config.model.adapter_config.adapters_to_use
-                        + self.config.data.eval_task
-                    )
+                    x_labels = self.adapter_names
                     # the adapter fusion attention is of size [bs, seq_len, n_tasks] for bert-fusion
                     # it should be of size [n_tasks] for weighted-composition
                     heatmap = viz_utils.visualize_fusion_attention(
