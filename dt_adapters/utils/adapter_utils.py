@@ -6,6 +6,7 @@ from transformers.adapters.configuration import AdapterConfig
 import transformers.adapters.composition as ac
 from transformers.adapters.configuration import DynamicAdapterFusionConfig
 from transformers.adapters.layer import AdapterLayer
+from transformers.adapters.modeling import NICECouplingBlock
 from typing import Iterable, List, Optional, Tuple, Union
 
 
@@ -65,11 +66,14 @@ def insert_new_adapter(adapter_library, model, adapter_name, adapter_config):
     model.transformer.set_active_adapters(adapter_name)
 
 
-def unfreeze_new_adapter(layer, adapter_name):
+def unfreeze_new_adapter(layer, adapter_name=None):
     if type(layer) == AdapterLayer:
         if adapter_name in layer.adapters:
             for param in layer.adapters[adapter_name].parameters():
                 param.requires_grad = True
+    if type(layer) == NICECouplingBlock:
+        for param in layer.parameters():
+            param.requires_grad = True
 
 
 def load_adapter(
@@ -188,6 +192,12 @@ def insert_new_fusion_layer(
     model.transformer.apply_to_adapter_layers(
         lambda i, layer: unfreeze_new_adapter(layer, new_adapter_name)
     )
+
+    # also unfreeze the invertible adapters?
+    invertible_layer = model.transformer.transformer.invertible_adapters[
+        new_adapter_name
+    ]
+    unfreeze_new_adapter(invertible_layer)
 
     # sanity checks to make sure that previous adapter weights are frozen
     for pretrained_adapter_name in adapters_names:
