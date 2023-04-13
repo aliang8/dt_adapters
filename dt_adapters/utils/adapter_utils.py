@@ -75,7 +75,7 @@ def unfreeze_new_adapter(layer, adapter_name):
 def load_adapter(
     model,
     adapter_library=[],
-    adapters_to_use=[],
+    adapter_keys_to_use=[],
     adapter_key="",
     adapter_ckpt_path=None,
 ):
@@ -100,7 +100,7 @@ def load_adapter(
     else:
         # load pretrained adapters from library
         adapters_names = []
-        for pretrained_adapter_key in adapters_to_use:
+        for pretrained_adapter_key in adapter_keys_to_use:
             adapter_name = load_adapter(
                 model, adapter_library, adapter_key=pretrained_adapter_key
             )
@@ -110,10 +110,12 @@ def load_adapter(
         return adapters_names
 
 
-def load_fusion_layer(model, adapter_library, adapters_to_use=[], task_name=""):
+def load_fusion_layer(model, adapter_library, adapter_keys_to_use=[], task_name=""):
     # load pretrained adapters
-    load_adapter(model, adapter_library, adapters_to_use)
-    fusion_layer_key = f"{task_name}" + "," + ",".join(adapters_to_use) + "_{exp_name}"
+    load_adapter(model, adapter_library, adapter_keys_to_use)
+    fusion_layer_key = (
+        f"{task_name}" + "," + ",".join(adapter_keys_to_use) + "_{exp_name}"
+    )
     print("Loading fusion layer: ", fusion_layer_key)
 
     if fusion_layer_key not in adapter_library:
@@ -125,7 +127,7 @@ def load_fusion_layer(model, adapter_library, adapters_to_use=[], task_name=""):
 
 
 def insert_new_fusion_layer(
-    adapter_library, model, new_adapter_name, config, adapters_to_use=[]
+    adapter_library, model, new_adapter_name, config, adapter_keys_to_use=[]
 ):
     """
     Adds an adapter for the new task and a fusion layer that fuses the new adapter with the pretrained adapters.
@@ -138,18 +140,18 @@ def insert_new_fusion_layer(
 
     # load adapters to use
     pretrained_adapters_available = list(adapter_library.keys())
-    if len(adapters_to_use) == 0 and len(pretrained_adapters_available) == 0:
+    if len(adapter_keys_to_use) == 0 and len(pretrained_adapters_available) == 0:
         print("No pretrained adapters available, stopping program")
         exit()
 
-    if len(adapters_to_use) == 0:
+    if len(adapter_keys_to_use) == 0:
         print("Did not specify adapters to use, using all available adapters")
-        adapters_to_use = pretrained_adapters_available
+        adapter_keys_to_use = pretrained_adapters_available
 
     print("loading pretrained adapter weights...")
 
     # check that all adapters exist
-    for pretrained_adapter_name in adapters_to_use:
+    for pretrained_adapter_name in adapter_keys_to_use:
         if not pretrained_adapter_name in adapter_library:
             raise Exception(f"{pretrained_adapter_name} not a valid adapter")
 
@@ -157,7 +159,7 @@ def insert_new_fusion_layer(
     adapters_names = load_adapter(
         model,
         adapter_library=adapter_library,
-        adapters_to_use=adapters_to_use,
+        adapter_keys_to_use=adapter_keys_to_use,
     )
 
     # add the new trainable adapter
@@ -220,6 +222,8 @@ def insert_new_fusion_layer(
             .query.weight.requires_grad
             == True
         )
+
+    return fusion_layer, all_single_task_adapters
 
 
 def update_adapter_library(adapter_library_file, adapter_name, ckpt_dir, metadata):

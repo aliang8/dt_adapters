@@ -172,7 +172,7 @@ class Trainer(object):
             # insert new adapters
             if self.config.model.use_single_adapter:
                 # create a new adapter for the task
-                adapter_utils.insert_new_adapter(
+                self.adapter_name = adapter_utils.insert_new_adapter(
                     adapter_library,
                     model,
                     adapter_name,
@@ -181,12 +181,12 @@ class Trainer(object):
 
             if self.config.model.use_adapter_fusion:
                 # create a fusion layer
-                adapter_utils.insert_new_fusion_layer(
+                self.fusion_name, _ = adapter_utils.insert_new_fusion_layer(
                     adapter_library,
                     model,
                     adapter_name,
                     self.config.model.adapter_config,
-                    adapters_to_use=self.config.model.adapters_to_use,
+                    adapter_keys_to_use=self.config.model.adapter_keys_to_use,
                 )
 
         if self.use_adapter:
@@ -360,8 +360,8 @@ class Trainer(object):
 
     def save_model(self, epoch):
         if self.use_adapter:
-            ckpt_dir = os.path.join(self.ckpt_dir, "models", f"epoch_{epoch:04d}")
-            os.makedirs(ckpt_dir, exist_ok=True)
+            model_ckpt_dir = os.path.join(self.ckpt_dir, "models", f"epoch_{epoch:04d}")
+            os.makedirs(model_ckpt_dir, exist_ok=True)
 
             now = datetime.now()
 
@@ -370,36 +370,33 @@ class Trainer(object):
                 "total_training_iters": self.total_training_iters,
                 "best_eval_score": self.best_eval_score,
                 "best_eval_epoch": self.best_eval_epoch,
-                "ckpt_path": str(ckpt_dir),
+                "ckpt_path": str(model_ckpt_dir),
                 "exp_name": self.config.exp_name,
                 "time": now.strftime("%d/%m/%Y %H:%M:%S"),
                 "seed": self.config.seed,
             }
 
             new_adapter_name = self.config.model.adapter_task_name
-            if self.config.model.use_adapter_fusion:
-                task_name = [new_adapter_name, *self.config.model.adapters_to_use]
-                task_name_str = ",".join(task_name)
-            else:
-                task_name = task_name_str = new_adapter_name
 
             # use HF util to save adapters
             adapter_utils.save_adapters(
                 self.model,
-                ckpt_dir,
+                model_ckpt_dir,
                 self.config.model.use_adapter_fusion,
-                task_name,
+                self.fusion_name,
                 metadata,
             )
             # update the library of adapters
             adapter_utils.update_adapter_library(
                 self.config.model.adapter_library_file,
-                task_name_str,
-                ckpt_dir,
+                self.adapter_name,
+                model_ckpt_dir,
                 metadata,
             )
         else:
-            ckpt_file = os.path.join(self.ckpt_dir, "models", f"ckpt_{epoch:04d}.pth")
+            model_ckpt_file = os.path.join(
+                self.ckpt_dir, "models", f"ckpt_{epoch:04d}.pth"
+            )
 
             metadata = {
                 "epoch": epoch,
@@ -407,7 +404,7 @@ class Trainer(object):
                 "total_training_iters": self.total_training_iters,
             }
             utils.save_model(
-                ckpt_file, self.model, self.optimizer, self.scheduler, metadata
+                model_ckpt_file, self.model, self.optimizer, self.scheduler, metadata
             )
 
     def train(self):
