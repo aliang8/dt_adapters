@@ -148,7 +148,7 @@ def load_model_from_ckpt(model, cfg, model_ckpt_dir, adapter_library=None, stric
     model.load_state_dict(state_dict["model"], strict=strict)
 
     # load adapters and fusion layers here if relevant
-    adapter_key = f"{cfg.model.adapter_task_name}_{cfg.exp_name}"
+    adapter_key = f"{cfg.model.adapter_task_name}_{cfg.exp_name}_{cfg.seed}"
     if cfg.stage == "eval" and cfg.model.use_single_adapter:
         load_adapter(model, adapter_library, adapter_key=adapter_key)
 
@@ -207,7 +207,7 @@ def compute_gradient_norms(model):
 def setup_logging(config):
     if config.stage == "pretraining":
         ckpt_dir = Path(os.path.join(config.log_dir, config.exp_name, config.seed))
-    elif config.stage == "finetune":
+    elif config.stage == "finetune" or config.stage == "eval":
         ckpt_dir = Path(
             os.path.join(
                 config.log_dir, config.exp_name, config.data.eval_task, str(config.seed)

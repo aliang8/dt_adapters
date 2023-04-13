@@ -1,3 +1,13 @@
+basketball-v2,pick-place-v2,door-open-v2,faucet-open-v2,handle-press-v2,stick-pull-v2_bert_fusion_0:
+  best_eval_epoch: 60
+  best_eval_score: 1.0
+  ckpt_path: /data/anthony/dt_adapters/results/bert_fusion/basketball-v2/0/models/epoch_0060
+  epoch: 60
+  exp_name: bert_fusion
+  name: basketball-v2,pick-place-v2,door-open-v2,faucet-open-v2,handle-press-v2,stick-pull-v2
+  seed: 0
+  time: 12/04/2023 18:46:16
+  total_training_iters: 12000
 basketball-v2_sta_0:
   best_eval_epoch: 70
   best_eval_score: 0.95
@@ -6,6 +16,16 @@ basketball-v2_sta_0:
   exp_name: sta
   name: basketball-v2
   total_training_iters: 20000
+bin-picking-v2,pick-place-v2,door-open-v2,faucet-open-v2,handle-press-v2,stick-pull-v2_bert_fusion_0:
+  best_eval_epoch: 20
+  best_eval_score: 0.35
+  ckpt_path: /data/anthony/dt_adapters/results/bert_fusion/bin-picking-v2/0/models/epoch_0020
+  epoch: 20
+  exp_name: bert_fusion
+  name: bin-picking-v2,pick-place-v2,door-open-v2,faucet-open-v2,handle-press-v2,stick-pull-v2
+  seed: 0
+  time: 12/04/2023 18:43:36
+  total_training_iters: 4000
 bin-picking-v2_sta_0:
   best_eval_epoch: 99
   best_eval_score: 0.5
@@ -14,6 +34,16 @@ bin-picking-v2_sta_0:
   exp_name: sta
   name: bin-picking-v2
   total_training_iters: 20000
+coffee-push-v2,pick-place-v2,door-open-v2,faucet-open-v2,handle-press-v2,stick-pull-v2_bert_fusion_0:
+  best_eval_epoch: 30
+  best_eval_score: 0.65
+  ckpt_path: /data/anthony/dt_adapters/results/bert_fusion/coffee-push-v2/0/models/epoch_0060
+  epoch: 60
+  exp_name: bert_fusion
+  name: coffee-push-v2,pick-place-v2,door-open-v2,faucet-open-v2,handle-press-v2,stick-pull-v2
+  seed: 0
+  time: 12/04/2023 18:46:44
+  total_training_iters: 12000
 coffee-push-v2_sta_0:
   best_eval_epoch: 70
   best_eval_score: 0.8
@@ -46,6 +76,16 @@ handle-press-v2_sta_0:
   exp_name: sta
   name: handle-press-v2
   total_training_iters: 20000
+peg-insert-side-v2,pick-place-v2,door-open-v2,faucet-open-v2,handle-press-v2,stick-pull-v2_bert_fusion_0:
+  best_eval_epoch: 20
+  best_eval_score: 0.3
+  ckpt_path: /data/anthony/dt_adapters/results/bert_fusion/peg-insert-side-v2/0/models/epoch_0050
+  epoch: 50
+  exp_name: bert_fusion
+  name: peg-insert-side-v2,pick-place-v2,door-open-v2,faucet-open-v2,handle-press-v2,stick-pull-v2
+  seed: 0
+  time: 12/04/2023 18:46:10
+  total_training_iters: 10000
 peg-insert-side-v2_sta_0:
   best_eval_epoch: 80
   best_eval_score: 0.65
@@ -62,6 +102,16 @@ pick-place-v2_sta_0:
   exp_name: sta
   name: pick-place-v2
   total_training_iters: 20000
+reach-wall-v2,pick-place-v2,door-open-v2,faucet-open-v2,handle-press-v2,stick-pull-v2_bert_fusion_0:
+  best_eval_epoch: 10
+  best_eval_score: 0.2
+  ckpt_path: /data/anthony/dt_adapters/results/bert_fusion/reach-wall-v2/0/models/epoch_0020
+  epoch: 20
+  exp_name: bert_fusion
+  name: reach-wall-v2,pick-place-v2,door-open-v2,faucet-open-v2,handle-press-v2,stick-pull-v2
+  seed: 0
+  time: 12/04/2023 18:40:16
+  total_training_iters: 4000
 reach-wall-v2_sta_0:
   best_eval_epoch: 90
   best_eval_score: 0.5

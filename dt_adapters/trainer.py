@@ -66,13 +66,23 @@ class Trainer(object):
 
         # if eval from checkpoint file, load the config from the checkpoint file
         if self.config.stage == "eval":
-            print("running eval, loading config from experiment config file")
             saved_config_file = os.path.join(
-                self.config.log_dir, self.config.exp_name, "config.yaml"
+                self.config.log_dir,
+                self.config.exp_name,
+                self.config.data.eval_task,
+                str(self.config.seed),
+                "config.yaml",
             )
+            print(
+                f"running eval, loading config from experiment config file: {saved_config_file}"
+            )
+
             if os.path.exists(saved_config_file):
                 exp_config = OmegaConf.load(saved_config_file)
                 self.config.model.update(exp_config.model)
+            else:
+                print("experiment config doesn't exist, exiting...")
+                exit()
 
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -415,7 +425,6 @@ class Trainer(object):
             )
 
     def train(self):
-        self.save_model(0)
         # main train loop
         # iterate over the dataset for a fixed number of epochs
         print(f"starting epoch: {self.start_epoch}")
