@@ -142,8 +142,10 @@ class TransformerPolicy(TrajectoryModel):
         )
 
         # this applies during adapter training time
-        if "adapter_attentions" in transformer_outputs:
-            out.adapter_attentions = transformer_outputs["adapter_attentions"]
+        if "adapter_fusion_attentions" in transformer_outputs:
+            out.adapter_fusion_attentions = transformer_outputs[
+                "adapter_fusion_attentions"
+            ]
         return out
 
     def get_action(
