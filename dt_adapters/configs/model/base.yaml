@@ -12,7 +12,7 @@ adapter_library_file: /data/anthony/dt_adapters/adapter_library.yaml
 adapter_keys_to_use:                                                # list of adapters to use for fusion
 
 adapter_config:
-  adapter_init_strategy: none                         # "random", "language", "none"
+  adapter_init_strategy: "hammer-v2"                         # "random", "language", "none", or name of the adapter
   
   adapter:                                    
     config: pfeiffer+inv            

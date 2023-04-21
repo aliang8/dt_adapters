@@ -185,12 +185,12 @@ def insert_new_fusion_layer(
         elif config.adapter_init_strategy == "language":
             raise NotImplementedError
         else:
-            indx = 0
+            indx = adapters_names.index(config.adapter_init_strategy)
         
         adapter_to_initialize_from = adapters_names[indx]
         adapter_to_initialize_from_ckpt_path = adapter_ckpt_paths[indx]
         
-        print(f'initializing new adapter {new_adapter_name} from {adapter_to_initialize_from} ...')
+        print(f'initializing new adapter {new_adapter_name} from pretrained: {adapter_to_initialize_from} ...')
         initialized_new_adapter = model.transformer.load_adapter(
             adapter_to_initialize_from_ckpt_path, 
             load_as=new_adapter_name, 
