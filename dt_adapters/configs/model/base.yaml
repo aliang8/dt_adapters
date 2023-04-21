@@ -12,6 +12,8 @@ adapter_library_file: /data/anthony/dt_adapters/adapter_library.yaml
 adapter_keys_to_use:                                                # list of adapters to use for fusion
 
 adapter_config:
+  adapter_init_strategy: none                         # "random", "language", "none"
+  
   adapter:                                    
     config: pfeiffer+inv            
     nonlinearity: none 

@@ -100,18 +100,19 @@ def load_adapter(
 
         # set active so the adapters are used during the forward pass
         model.transformer.set_active_adapters(adapter_name)
-        return adapter_name
+        return adapter_name, adapter_ckpt_path
     else:
         # load pretrained adapters from library
-        adapters_names = []
+        adapters_names, adapter_ckpt_paths = [], []
         for pretrained_adapter_key in adapter_keys_to_use:
-            adapter_name = load_adapter(
+            adapter_name, adapter_ckpt_path = load_adapter(
                 model, adapter_library, adapter_key=pretrained_adapter_key
             )
             adapters_names.append(adapter_name)
+            adapter_ckpt_paths.append(adapter_ckpt_path)
 
         model.transformer.set_active_adapters(adapters_names)
-        return adapters_names
+        return adapters_names, adapter_ckpt_paths
 
 
 def load_fusion_layer(model, adapter_library, adapter_keys_to_use=[], task_name=""):
@@ -160,7 +161,7 @@ def insert_new_fusion_layer(
             raise Exception(f"{pretrained_adapter_name} not a valid adapter")
 
     # load pretrained adapters
-    adapters_names = load_adapter(
+    adapters_names, adapter_ckpt_paths = load_adapter(
         model,
         adapter_library=adapter_library,
         adapter_keys_to_use=adapter_keys_to_use,
@@ -175,6 +176,26 @@ def insert_new_fusion_layer(
     model.transformer.add_adapter(
         new_adapter_name, config=adapter_config, set_active=True
     )
+    
+    # initialize new adapter from a pretrained adapter
+    # randomly choose an adapter to use
+    if config.adapter_init_strategy != "none":
+        if config.adapter_init_strategy == "random":
+            indx = np.random.randint(len(adapters_names))
+        elif config.adapter_init_strategy == "language":
+            raise NotImplementedError
+        else:
+            indx = 0
+        
+        adapter_to_initialize_from = adapters_names[indx]
+        adapter_to_initialize_from_ckpt_path = adapter_ckpt_paths[indx]
+        
+        print(f'initializing new adapter {new_adapter_name} from {adapter_to_initialize_from} ...')
+        initialized_new_adapter = model.transformer.load_adapter(
+            adapter_to_initialize_from_ckpt_path, 
+            load_as=new_adapter_name, 
+            set_active=True
+        )
 
     # set the fusion layer as active
     fusion_layer = ac.Fuse(*all_single_task_adapters)

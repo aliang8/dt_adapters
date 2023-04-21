@@ -198,7 +198,7 @@ class Trainer(object):
                     adapter_library,
                     model,
                     adapter_name,
-                    self.config.model.adapter_config,
+                    self.config.model.adapter_config, 
                     adapter_keys_to_use=self.config.model.adapter_keys_to_use,
                 )
 

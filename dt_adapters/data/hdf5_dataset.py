@@ -73,7 +73,7 @@ class HDF5TrajectoryDataset(Dataset, abc.ABC):
                         self.num_demos_per_task != -1
                         and traj_index >= self.num_demos_per_task
                     ):
-                        continue
+                        break
 
                     trajectory = dict()
 
