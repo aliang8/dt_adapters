@@ -293,7 +293,7 @@ class Trainer(object):
         fusion_method = self.config.model.adapter_config.fusion.fusion_method
         if (
             self.config.model.use_adapter_fusion
-            and fusion_method == "weighted-composition"
+            and fusion_method in ["weighted-composition", "taco-fusion"]
         ):
             attn_dict = model_out["adapter_fusion_attentions"]
             attn_matrix = viz_utils.extract_attn_matrix(attn_dict)

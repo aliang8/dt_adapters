@@ -168,34 +168,38 @@ def insert_new_fusion_layer(
     )
 
     # add the new trainable adapter
-    all_single_task_adapters = [new_adapter_name] + adapters_names
-    adapter_config = config.adapter
-    adapter_config["nonlinearity"] = None
-    adapter_config["reduction_factor"] = None
-    adapter_config = AdapterConfig.load(**adapter_config)
-    model.transformer.add_adapter(
-        new_adapter_name, config=adapter_config, set_active=True
-    )
-    
-    # initialize new adapter from a pretrained adapter
-    # randomly choose an adapter to use
-    if config.adapter_init_strategy != "none":
-        if config.adapter_init_strategy == "random":
-            indx = np.random.randint(len(adapters_names))
-        elif config.adapter_init_strategy == "language":
-            raise NotImplementedError
-        else:
-            indx = adapters_names.index(config.adapter_init_strategy)
-        
-        adapter_to_initialize_from = adapters_names[indx]
-        adapter_to_initialize_from_ckpt_path = adapter_ckpt_paths[indx]
-        
-        print(f'initializing new adapter {new_adapter_name} from pretrained: {adapter_to_initialize_from} ...')
-        initialized_new_adapter = model.transformer.load_adapter(
-            adapter_to_initialize_from_ckpt_path, 
-            load_as=new_adapter_name, 
-            set_active=True
+    if base_fusion_config["add_new_unfrozen_adapter"] is True:
+        print(f'Adding new Adapter {new_adapter_name}')
+        all_single_task_adapters = [new_adapter_name] + adapters_names
+        adapter_config = config.adapter
+        adapter_config["nonlinearity"] = None
+        adapter_config["reduction_factor"] = None
+        adapter_config = AdapterConfig.load(**adapter_config)
+        model.transformer.add_adapter(
+            new_adapter_name, config=adapter_config, set_active=True
         )
+        # initialize new adapter from a pretrained adapter
+        # randomly choose an adapter to use
+        if config.adapter_init_strategy != "none":
+            if config.adapter_init_strategy == "random":
+                indx = np.random.randint(len(adapters_names))
+            elif config.adapter_init_strategy == "language":
+                raise NotImplementedError
+            else:
+                indx = adapters_names.index(config.adapter_init_strategy)
+            
+            adapter_to_initialize_from = adapters_names[indx]
+            adapter_to_initialize_from_ckpt_path = adapter_ckpt_paths[indx]
+            
+            print(f'initializing new adapter {new_adapter_name} from pretrained: {adapter_to_initialize_from} ...')
+            initialized_new_adapter = model.transformer.load_adapter(
+                adapter_to_initialize_from_ckpt_path, 
+                load_as=new_adapter_name, 
+                set_active=True
+            )
+    else:
+        print(f"No new Adapters added, only existing Adapters {','.join(adapters_names)} used")
+        all_single_task_adapters = adapters_names
 
     # set the fusion layer as active
     fusion_layer = ac.Fuse(*all_single_task_adapters)
@@ -203,22 +207,28 @@ def insert_new_fusion_layer(
         fusion_layer, config=base_fusion_config, set_active=True
     )
 
+    # If fusion type is taco-fusion, add TacoFusion module within main model!
+    if base_fusion_config["fusion_method"] == "taco-fusion":
+        model.add_taco_fusion(model_dim=model.transformer.config.n_embd, adapter_names=all_single_task_adapters, fusion_config=base_fusion_config)
+
     # activate the adapters
     model.transformer.set_active_adapters([fusion_layer, *all_single_task_adapters])
 
     # make sure all the other weights are frozen except fusion layer and new adapter
     model.transformer.train_adapter_fusion(fusion_layer)
 
-    # make sure the new adapter weights are trainable
-    model.transformer.apply_to_adapter_layers(
-        lambda i, layer: unfreeze_new_adapter(layer, new_adapter_name)
-    )
+    if base_fusion_config["add_new_unfrozen_adapter"] is True or base_fusion_config["unfreeze_task_adapter"] is True:
+        # make sure the new adapter weights are trainable
+        print(f"Making sure new adapter {new_adapter_name} is unfrozen")
+        model.transformer.apply_to_adapter_layers(
+            lambda i, layer: unfreeze_new_adapter(layer, new_adapter_name)
+        )
 
-    # also unfreeze the invertible adapters?
-    invertible_layer = model.transformer.transformer.invertible_adapters[
-        new_adapter_name
-    ]
-    unfreeze_new_adapter(invertible_layer)
+        # also unfreeze the invertible adapters?
+        invertible_layer = model.transformer.transformer.invertible_adapters[
+            new_adapter_name
+        ]
+        unfreeze_new_adapter(invertible_layer)
 
     # sanity checks to make sure that previous adapter weights are frozen
     for pretrained_adapter_name in adapters_names:
@@ -230,13 +240,14 @@ def insert_new_fusion_layer(
             == requires_grad
         )
 
-    # check that the new adapter is trainable
-    assert (
-        model.transformer.transformer.h[0]
-        .output_adapters.adapters[new_adapter_name]
-        .adapter_up.weight.requires_grad
-        == True
-    )
+    if base_fusion_config["add_new_unfrozen_adapter"] is True or base_fusion_config["unfreeze_task_adapter"] is True:
+        # check that the new adapter is trainable
+        assert (
+            model.transformer.transformer.h[0]
+            .output_adapters.adapters[new_adapter_name]
+            .adapter_up.weight.requires_grad
+            == True
+        )
 
     # check the the fusion layers/weights are trainable
     if base_fusion_config["fusion_method"] == "weighted-composition":
@@ -246,11 +257,16 @@ def insert_new_fusion_layer(
             .unscaled_weights.requires_grad
             == True
         )
-    else:
+    elif base_fusion_config["fusion_method"] == "bert-fusion":
         assert (
             model.transformer.transformer.h[0]
             .output_adapters.adapter_fusion_layer[fusion_layer.name]
             .query.weight.requires_grad
+            == True
+        )
+    elif base_fusion_config["fusion_method"] == "taco-fusion":
+        assert (
+            model.taco_fusion[fusion_layer.name].W_q.weight.requires_grad
             == True
         )
 

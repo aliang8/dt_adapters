@@ -8,11 +8,11 @@ act_dim: ${data.act_dim}
 use_single_adapter: False                                       # do we add an adapter during training
 use_adapter_fusion: False                                       # load existing adapters for fusion
 adapter_task_name: ${data.eval_task}                            # this should be the task name
-adapter_library_file: /data/anthony/dt_adapters/adapter_library.yaml 
+adapter_library_file: /home/tejas/projects/dt_adapters/adapter_library.yaml 
 adapter_keys_to_use:                                                # list of adapters to use for fusion
 
 adapter_config:
-  adapter_init_strategy: "hammer-v2"                         # "random", "language", "none", or name of the adapter
+  adapter_init_strategy: "none"                         # "random", "language", "none", or name of the adapter
   
   adapter:                                    
     config: pfeiffer+inv            

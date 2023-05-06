@@ -14,7 +14,11 @@ data:
 model:
   use_single_adapter: False
   use_adapter_fusion: True
-
+  adapter_config:
+    fusion:
+      fusion_method: taco-fusion
+      add_new_unfrozen_adapter: False
+  
 general:
   eval_every: 10
   load_from_ckpt: True

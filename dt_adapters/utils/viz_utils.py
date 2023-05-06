@@ -122,6 +122,8 @@ def visualize_fusion_attention(fusion_method, attn_dict, adapters_to_use=[]):
         # average over first and second dimension for bert-fusion
         # should be of size [n_layers, n_tasks]
         attn_matrix = attn_matrix.mean(axis=1).mean(axis=1)
+    elif fusion_method == "taco-fusion":
+        attn_matrix = attn_matrix[0]    # (seq_len, n_tasks)
 
     plt.clf()
     plt.tight_layout()

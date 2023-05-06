@@ -1,10 +1,12 @@
 import numpy as np
 import copy
+import pdb
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 import transformers
+from transformers.adapters import AdapterLayer, Fuse
 import einops
 
 from dt_adapters.models.model import TrajectoryModel
@@ -17,9 +19,47 @@ from torch.distributions import Normal, Independent, Categorical
 from torch.distributions.transformed_distribution import TransformedDistribution
 from torch.distributions.transforms import TanhTransform
 
-from typing import Optional, Tuple, Dict, Union
+from typing import Optional, Tuple, Dict, Union, List
 from omegaconf import DictConfig
 
+class TacoFusion(nn.Module):
+    """
+    Implementation of a LayerAgnosticFusionComposition block.
+    """
+
+    def __init__(self, model_dim: List, adapter_names):
+        super(TacoFusion, self).__init__()
+        # if config.hidden_size % config.num_attention_heads != 0:
+        #     raise ValueError(
+        #         "The hidden size (%d) is not a multiple of the number of attention "
+        #         "heads (%d)" % (config.hidden_size, config.num_attention_heads))
+        self.model_dim = model_dim
+        self.adapter_names = adapter_names
+
+        self.W_q = nn.Linear(model_dim, model_dim)
+        #self.W_k = nn.Linear(model_dim, model_dim)
+        self.keys = nn.Parameter(torch.normal(mean=0.0, std=0.02, size=(model_dim, len(adapter_names))))     # (N, H)
+
+    def forward(self, input_embeddings):
+        # input_embeddings: (B, L, H)
+
+        batch_size = input_embeddings.shape[0]      # B
+        seq_len = input_embeddings.shape[1]         # L
+
+        queries = []
+        for i in range(seq_len):
+            query_position_i = torch.mean(input_embeddings[:, :i+1], dim=1)     # (B, H)   : take average of embeddings from position 0 toi
+            queries.append(query_position_i)
+        query = torch.stack(queries, dim=1)         # (B, L, H)
+
+        query_proj = self.W_q(query).unsqueeze(2)                       # (B, L, 1, H)
+        #keys_proj = self.W_k(keys).permute(0, 2, 1)                    # (B, H, N)
+        keys_proj = self.keys.unsqueeze(0).unsqueeze(0).expand(batch_size, seq_len, -1, -1)   # (B, L, H, N)
+        
+        scores =  torch.matmul(query_proj, keys_proj).squeeze(2)        # (B, L, N)
+        scores = torch.div(scores, np.sqrt(self.model_dim)) 
+        attention_weights = nn.Softmax(dim=-1)(scores)                  # (B, L, N)
+        return attention_weights
 
 class TransformerPolicy(TrajectoryModel):
     def __init__(
@@ -66,6 +106,9 @@ class TransformerPolicy(TrajectoryModel):
         self.predict_action = nn.Sequential(*action_predictor)
         self.device = device
 
+        self.fusion_config = None
+        self.taco_fusion = nn.ModuleDict({})
+
     def forward(
         self,
         states: torch.Tensor,
@@ -111,6 +154,26 @@ class TransformerPolicy(TrajectoryModel):
         stacked_inputs = torch.stack((state_embeddings, action_embeddings), dim=1)
         stacked_inputs = einops.rearrange(stacked_inputs, "B L T D -> B (T L) D", L=2)
         stacked_inputs = self.embed_ln(stacked_inputs)
+
+        ######################
+        # If currently doing taco-fusion
+        active_adapters_setup = self.transformer.active_adapters
+        if type(active_adapters_setup) is transformers.adapters.Fuse \
+            and self.fusion_config is not None \
+            and self.fusion_config["fusion_method"] == "taco-fusion":
+
+            fusion_adapter_names = [a for a in active_adapters_setup]   # length N, if fusing N adapters
+
+            #query = torch.mean(stacked_inputs, dim=1)       # [B, D] -- average embeddings across all timesteps, ensures that queries for consecutive timesteps are similar
+            #keys = torch.randn(query.shape[0], len(fusion_adapter_names), self.transformer.config.n_embd).to(self.device)
+            taco_adapter_weights = self.taco_fusion[','.join(fusion_adapter_names)](stacked_inputs)    # (B, L, N)
+
+            for idx,adapter_name in enumerate(fusion_adapter_names):
+                adapter_weight = taco_adapter_weights[:,:,idx]
+                self.transformer.apply_to_adapter_layers(lambda i, layer: self.set_taco_fusion_weight(layer=layer, adapter_name=adapter_name, adapter_weight=adapter_weight))
+                #print("Applied weight {:.4f} for adapter #{}, {}".format(adapter_weight[0].item(), idx, adapter_name))
+
+        ######################
 
         # [B, 2, T]
         stacked_attention_mask = torch.stack(
@@ -210,3 +273,17 @@ class TransformerPolicy(TrajectoryModel):
         for module in modules_to_freeze:
             for param in module.parameters():
                 param.requires_grad = False
+
+    def add_taco_fusion(self, model_dim, adapter_names, fusion_config):
+        adapter_names_str = ','.join(adapter_names)
+        self.taco_fusion[adapter_names_str] = TacoFusion(model_dim, adapter_names)
+        self.fusion_config = fusion_config
+        print("Added TACo Fusion module to model")
+        #import pdb; pdb.set_trace()
+    
+    def set_taco_fusion_weight(self, layer, adapter_name, adapter_weight):
+        if type(layer) is not AdapterLayer:
+            return
+        if adapter_name not in layer.adapters:
+            return
+        layer.adapters[adapter_name].taco_adapter_weight = adapter_weight   # (B,L)

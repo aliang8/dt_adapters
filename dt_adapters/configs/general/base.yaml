@@ -21,7 +21,7 @@ use_lr_scheduler: True                              # use learning rate schedule
 
 # logging
 project_name: dt-adapters
-log_dir: /data/anthony/dt_adapters/results/         # root folder for experiment results
+log_dir: /home/tejas/projects/dt_adapters/results/         # root folder for experiment results
 exp_name: test                                      # exp name, used for folder path and wandb group name
 log_to_wandb: False                                 # should we log the metrics to wandb
 log_outputs: False                                  # should we create a new folder and store exp output
